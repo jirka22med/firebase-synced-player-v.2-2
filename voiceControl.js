@@ -114,7 +114,7 @@ class VoiceController {
             
             // Ovládání modulu
             { patterns: ['help', 'nápověda', 'příkazy', 'commands'], action: 'showHelp', description: 'Zobrazí dostupné příkazy' },
-            { patterns: ['voice off', 'hlas vypnout', 'stop listening', 'deaktivovat'], action: 'disableVoice', description: 'Vypne hlasové ovládání' }
+            { patterns: ['voice off', 'hlas vypnout', 'stop listening', 'deaktivovat', 'vypni hlas', 'konec', 'stačí', 'hotovo', 'drž hubu'], action: 'disableVoice', description: 'Vypne hlasové ovládání' }
         ];
 
         czechCommands.forEach(cmd => {
