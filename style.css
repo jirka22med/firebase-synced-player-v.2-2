@@ -1,0 +1,1413 @@
+/* Modernizované proměnné a základní nastavení */
+:root {
+    --spacing-unit: 16px;
+    --primary-color: #00B7EB; /* Jasnější modrá pro Star Trek estetiku */
+    --secondary-color: #39FF14; /* Neonově zelená pro akcenty */
+    --accent-color: #FF073A; /* Výrazná červená pro důležité prvky */
+    --background-dark: #0D1B2A; /* Tmavší modročerné pozadí */
+    --background-light: #1B263B; /* Světlejší pozadí pro playlist a kontejnery */
+    --text-primary: #E0E1DD; /* Světlý text pro čitelnost */
+    --text-secondary: #778DA9; /* Sekundární text pro méně důležité prvky */
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    --font-main: 'Orbitron', 'Segoe UI', system-ui, sans-serif; /* Orbitron pro sci-fi styl */
+    --font-text: 'Roboto', sans-serif; /* Moderní font pro delší texty */
+    --glow-effect: 0 0 8px rgba(0, 183, 235, 0.5);
+    --scroll-glow: rgba(57, 255, 20, 0.6);
+    --scroll-brightness: 1.2;
+}
+
+/* Základní nastavení těla stránky */
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    width: 100vw;
+   background-color: var(--background-dark); 
+    color: var(--text-primary); 
+    font-family: var(--font-main);
+    text-align: center;
+    font-weight: 500;
+    overscroll-behavior: none;
+    box-sizing: border-box;
+    position: fixed;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+}
+ 
+/* Pozadí s obrázkem */
+.background-image-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+}
+.background-image-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 1.0;
+     
+    /*toto dektivuje označování obrázku */
+    user-select: none; /* Deaktivuje označování pro všechny prohlížeče */
+    -webkit-user-select: none; /* Pro Safari a Chrome */
+    -moz-user-select: none; /* Pro Firefox */
+    -ms-user-select: none; /* Pro starší verze Internet Exploreru */
+}
+
+/* Hlavní wrapper přehrávače */
+.player-content-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: var(--spacing-md);
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+/* Nadpis a název skladby */
+.header-title, #trackTitle {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.0rem;
+    font-weight: 700;
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color), var(--accent-color));
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradientAnimation 15s ease infinite;
+    margin: var(--spacing-md) 0;
+    text-shadow: var(--glow-effect);
+    user-select: none;
+    z-index: 10;
+    margin-top: -5px;
+}
+
+#trackTitle {
+    font-size: 1.9rem;
+    margin-bottom: var(--spacing-md);
+}
+
+/* Animace gradientu */
+@keyframes gradientAnimation {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Hlavní kontejner audia */
+.audio-container {
+    background: rgba(27, 38, 59, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--primary-color);
+    border-radius: 20px;
+    box-shadow: var(--glow-effect);
+    max-width: 1000px;
+    width: calc(95% - 2px);
+    margin: 0 auto var(--spacing-lg) auto;
+    padding: var(--spacing-md);
+    transition: var(--transition);
+    font-size: 1rem;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.audio-container:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 15px 30px rgba(0, 183, 235, 0.4);
+}
+
+/* Časové ovládání */
+.time-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    margin-bottom: var(--spacing-md);
+}
+
+.time-controls .time-part, 
+.time-controls #currentTime .time-part, 
+.time-controls #duration .time-part {
+    font-family: 'Courier New', monospace;
+    font-size: 1.6rem;
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradientAnimation 10s ease infinite;
+}
+
+.time-controls .time-separator {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.6rem;
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradientAnimation 10s ease infinite;
+}
+
+/* Posuvník pro pokrok skladby */
+#progress-bar {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    max-width: 450px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    outline: none;
+    margin: 0 var(--spacing-sm);
+    box-shadow: var(--glow-effect);
+}
+
+#progress-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    cursor: pointer;
+    border: 2px solid var(--background-dark);
+    box-shadow: var(--glow-effect);
+}
+
+#progress-bar::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    cursor: pointer;
+    border: 2px solid var(--background-dark);
+    box-shadow: var(--glow-effect);
+}
+
+/* Ovládací tlačítka */
+.controls {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: center;
+    margin-bottom: var(--spacing-md);
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+button, .control-button {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--primary-color);
+    border-radius: 30px;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: 10px 20px;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    min-width: 50px;
+    box-shadow: var(--glow-effect);
+}
+
+button:hover, .control-button:hover {
+    background: var(--primary-color);
+    color: var(--background-dark);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0, 183, 235, 0.5);
+}
+
+button:active, .control-button:active {
+    transform: scale(0.95);
+}
+
+#play-button.active, #pause-button.active, #loop-button.active, #shuffle-button.active, #fullscreen-toggle.active, #timer-button.active, #favorites-button.active {
+    background-color: var(--primary-color);
+    color: var(--background-dark);
+    box-shadow: 0 0 12px var(--primary-color);
+}
+
+#pause-button.active {
+    background-color: var(--accent-color);
+    box-shadow: 0 0 12px var(--accent-color);
+}
+
+#loop-button.active {
+    background-color: var(--secondary-color);
+    color: var(--background-dark);
+    box-shadow: 0 0 12px var(--secondary-color);
+}
+
+/* Ovládání hlasitosti */
+.volume-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+    width: 100%;
+    justify-content: center;
+}
+
+#volume-slider {
+    -webkit-appearance: none;
+    width: 160px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    outline: none;
+    box-shadow: var(--glow-effect);
+}
+
+#volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    border: 2px solid var(--background-dark);
+    box-shadow: var(--glow-effect);
+}
+
+#volume-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    border: 2px solid var(--background-dark);
+    box-shadow: var(--glow-effect);
+}
+
+#volume-value {
+    min-width: 35px;
+    text-align: center;
+    font-weight: bold;
+    color: var(--primary-color);
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    background: transparent;
+    padding: 0;
+    border: none;
+}
+
+/* Playlist */
+.playlist {
+    counter-reset: playlist-counter;
+    padding: var(--spacing-sm);
+    overflow-y: auto;
+    border: 1px solid var(--primary-color);
+    margin-top: var(--spacing-md);
+    scrollbar-width: thin;
+    scrollbar-color: var(--secondary-color) var(--background-light);
+    background: var(--background-light);
+    border-radius: 12px;
+    width: 100%;
+    max-height: 280px;
+    box-shadow: var(--glow-effect);
+}
+
+.playlist.hidden {
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.playlist::-webkit-scrollbar {
+    width: 8px;
+}
+
+.playlist::-webkit-scrollbar-track {
+    background: var(--background-dark);
+    border-radius: 4px;
+}
+
+.playlist::-webkit-scrollbar-thumb {
+    background-color: var(--secondary-color);
+    border-radius: 4px;
+    box-shadow: var(--glow-effect);
+}
+
+.playlist::-webkit-scrollbar-thumb:hover {
+    background-color: var(--primary-color);
+}
+
+.playlist-item {
+    position: relative;
+    padding: 10px 50px;
+    margin: 5px 0;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 1rem;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+.playlist-item:hover {
+    background: rgba(0, 183, 235, 0.3);
+   /* transform: scale(1.02);*/
+}
+
+.playlist-item.active {
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+    border-left: 4px solid var(--primary-color) !important;
+    box-shadow: var(--glow-effect) !important;
+}
+
+.playlist-item::before, .playlist-item::after {
+    content: counter(playlist-counter);
+    position: absolute;
+    color: var(--text-secondary);
+    opacity: 0.8;
+    width: 30px;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.playlist-item::before {
+    counter-increment: playlist-counter;
+    left: 15px;
+}
+
+.playlist-item::after {
+    right: 15px;
+}
+
+.favorite-button {
+    margin-left: var(--spacing-sm);
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    color: #FFD60A;
+    padding: 0;
+}
+
+/* Klávesové zkratky */
+.keyboard-container {
+    margin-top: var(--spacing-md);
+    width: 100%;
+    max-width: 750px;
+}
+
+#popisky {
+    display: none;
+}
+
+#popisky h3 {
+    text-align: center;
+    color: var(--primary-color);
+    margin-bottom: var(--spacing-sm);
+    font-size: 1.2rem;
+}
+
+.shortcut-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-text);
+    font-size: 0.9rem;
+    background-color: rgba(27, 38, 59, 0.8);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--glow-effect);
+}
+
+.shortcut-table th, .shortcut-table td {
+    border: 1px solid var(--primary-color);
+    padding: 8px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.shortcut-table tr:first-child td {
+    background-color: var(--background-light);
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.shortcut-table tr:nth-child(even) td {
+    background-color: rgba(27, 38, 59, 0.9);
+}
+
+.shortcut-table tr:hover td {
+    background-color: var(--background-light);
+}
+
+/* Čas a kalendář */
+.time-calendar-wrapper {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    margin-top: var(--spacing-md);
+    width: 100%;
+    background: rgba(27, 38, 59, 0.8);
+    border-radius: 10px;
+    padding: var(--spacing-sm);
+    box-shadow: var(--glow-effect);
+}
+
+.time {
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+}
+
+.time .num {
+    font-size: 2rem;
+}
+
+.time .text {
+    font-size: 0.9rem;
+    margin-left: 0.2em;
+}
+
+.time .colon {
+    font-size: 2rem;
+}
+
+.date {
+    font-size: 1.1rem;
+    color: var(--secondary-color);
+}
+
+/* Časovač */
+.timer-container {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    margin: var(--spacing-md) 0;
+    padding: var(--spacing-md);
+    background-color: rgba(27, 38, 59, 0.9);
+    border-radius: 10px;
+    border: 1px solid var(--accent-color);
+    width: 100%;
+    max-width: 450px;
+    box-shadow: var(--glow-effect);
+}
+
+.timer-display {
+    font-size: 1.3rem;
+    color: var(--accent-color);
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 8px 15px;
+    border-radius: 6px;
+    margin-bottom: var(--spacing-sm);
+}
+
+.timer-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--spacing-sm);
+}
+
+.timer-controls button {
+    padding: 8px 12px;
+    font-size: 1rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--accent-color);
+    border-radius: 20px;
+    color: var(--text-primary);
+}
+
+.timer-controls button:hover {
+    background-color: var(--accent-color);
+    color: var(--background-dark);
+}
+
+/* Menu oblíbených */
+.favorites-menu {
+    display: none;
+    position: absolute;
+    width: 300px;
+    max-height: 320px;
+    overflow-y: auto;
+    background-color: var(--background-dark);
+    border: 1px solid var(--accent-color);
+    border-radius: 10px;
+    padding: var(--spacing-md);
+    box-shadow: var(--glow-effect);
+    z-index: 1000;
+    right: 15px;
+    top: 80px;
+    color: var(--text-primary);
+}
+
+.favorites-menu h3 {
+    text-align: center;
+    color: var(--accent-color);
+    margin-top: 0;
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--accent-color);
+    font-size: 1.2rem;
+}
+
+.favorites-menu-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color 0.3s;
+    margin-bottom: 4px;
+    font-size: 1rem;
+}
+
+.favorites-menu-item:hover {
+    background-color: rgba(255, 7, 58, 0.3);
+}
+
+.favorites-menu-item.active {
+    background-color: rgba(255, 7, 58, 0.5);
+}
+
+.favorite-remove {
+    font-size: 1.1rem;
+}
+
+/* Patička */
+footer {
+    margin-top: var(--spacing-lg);
+    color: var(--text-secondary);
+    text-align: center;
+    padding: var(--spacing-md);
+    background-color: rgba(27, 38, 59, 0.9);
+    box-shadow: 0 -4px 10px rgba(0, 183, 235, 0.3);
+    font-size: 0.9rem;
+    border-radius: 10px 10px 0 0;
+    width: auto;
+    max-width: 95%;
+}
+
+footer a {
+    color: #FFD60A;
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+footer a:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+/* Zpráva o načítání */
+.error-image-placeholder {
+    width: 100%;
+    height: 60px;
+    background-color: rgba(27, 38, 59, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: var(--spacing-md);
+    border-radius: 10px;
+    box-shadow: var(--glow-effect);
+}
+
+.loading-message {
+    text-align: center;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-family: var(--font-main);
+    text-shadow: var(--glow-effect);
+}
+
+/* Resetovací tlačítko */
+.reset-sync-button {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: var(--text-primary);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: var(--glow-effect);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin: var(--spacing-md);
+}
+
+.reset-sync-button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 183, 235, 0.5);
+    background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+}
+
+.reset-sync-button:active {
+    transform: scale(0.95);
+}
+
+.reset-sync-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.reset-sync-button.loading .reset-icon {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Media Queries pro responzivitu */
+@media (max-width: 768px) {
+    .header-title {
+        font-size: 2.2rem;
+        margin: var(--spacing-md) 0;
+    }
+
+    #trackTitle {
+        font-size: 1.6rem;
+    }
+
+    .audio-container {
+        padding: var(--spacing-sm);
+        border-radius: 15px;
+        width: calc(95% - 2px);
+    }
+
+    .time-controls {
+        flex-direction: row;
+        gap: 6px;
+    }
+
+    #progress-bar {
+        height: 8px;
+        max-width: 350px;
+    }
+
+    #progress-bar::-webkit-slider-thumb {
+        width: 16px;
+        height: 16px;
+    }
+
+    #progress-bar::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+    }
+
+    button, .control-button {
+        font-size: 0.95rem;
+        padding: 8px 12px;
+        min-width: 40px;
+    }
+
+    #volume-slider {
+        width: 130px;
+        height: 6px;
+    }
+
+    #volume-slider::-webkit-slider-thumb {
+        width: 14px;
+        height: 14px;
+    }
+
+    #volume-slider::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+    }
+
+    #volume-value {
+        font-size: 0.95rem;
+    }
+
+    .playlist-item {
+        font-size: 0.9rem;
+        padding: 8px 40px;
+        border-radius: 12px;
+    }
+
+    .playlist-item::before, .playlist-item::after {
+        font-size: 0.8rem;
+        left: 12px;
+        right: 12px;
+    }
+
+    .favorite-button {
+        font-size: 0.95rem;
+    }
+
+    .time-calendar-wrapper {
+        font-size: 1.1rem;
+        flex-direction: row;
+    }
+
+    .time .num {
+        font-size: 1.6rem;
+    }
+
+    .time .text {
+        font-size: 0.8rem;
+    }
+
+    .time .colon {
+        font-size: 1.6rem;
+    }
+
+    .date {
+        font-size: 1rem;
+    }
+
+    .favorites-menu {
+        width: 260px;
+        top: 70px;
+    }
+
+    .shortcut-table {
+        font-size: 0.8rem;
+    }
+
+    .shortcut-table th, .shortcut-table td {
+        padding: 6px;
+    }
+}
+
+@media (max-width: 480px) {
+    .player-content-wrapper {
+        padding: var(--spacing-sm);
+    }
+
+    .header-title {
+        font-size: 1.8rem;
+        margin: var(--spacing-sm) 0;
+    }
+
+    #trackTitle {
+        font-size: 1.3rem;
+    }
+
+    .audio-container {
+        width: calc(95% - 2px);
+        border-radius: 12px;
+    }
+
+    .time-controls .time-part, 
+    .time-controls .time-separator {
+        font-size: 1.3rem;
+    }
+
+    #progress-bar {
+        height: 7px;
+    }
+
+    #progress-bar::-webkit-slider-thumb {
+        width: 14px;
+        height: 14px;
+    }
+
+    #progress-bar::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+    }
+
+    button, .control-button {
+        font-size: 0.85rem;
+        padding: 6px 10px;
+        border-radius: 15px;
+    }
+    .playlist{
+      width: 96%;  
+        
+    }
+    .playlist-item {
+        font-size: 0.85rem;
+        padding: 6px 35px;
+    }
+
+    .playlist-item::before, .playlist-item::after {
+        font-size: 0.75rem;
+    }
+
+    .keyboard-container {
+        margin-top: var(--spacing-sm);
+    }
+
+    #popisky h3 {
+        font-size: 1.1rem;
+    }
+
+    .shortcut-table {
+        font-size: 0.75rem;
+    }
+
+    .time .num, .time .colon {
+        font-size: 1.4rem;
+    }
+
+    .favorites-menu {
+        width: 220px;
+    }
+
+    footer {
+        font-size: 0.85rem;
+        padding: var(--spacing-sm);
+    }
+}
+
+/* Globální deaktivace označování textu */
+* {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+
+.sync-status-container {
+    padding: 1rem;
+    border: 2px solid #ffcc00; /* Ohraničení jako varovný štít */
+    border-radius: 8px;        /* Jemné zakulacení rohů */
+    background-color: #1a1a1a; /* Výplň v tmavém stylu můstku */
+    max-width: 400px;
+    margin: 1rem auto;
+    box-shadow: 0 0 10px #ffcc00aa; /* Jemné glow efekty */
+}
+
+.sync-message {
+    color: #00ffff; /* Barva textu – klidně změň na jinou */
+    font-size: 1.2rem;
+    font-family: "Consolas", "Courier New", monospace;
+    text-align: center;
+    font-weight: bold;
+}
+
+
+
+ 
+ .volume-controls{
+  padding: 0.5rem;
+    border: 2px solid #ffcc00;  
+    border-radius: 8px;         
+    background-color: #1a1a1a;  
+    max-width: 225px;
+    margin: 1rem auto;
+    box-shadow: 0 0 10px #ffcc00aa; 
+     margin-top: -7px;
+    
+}
+
+
+  /* ==================================================
+   HLAVNÍ KONTEJNER TONE METRU
+   ================================================== */
+
+.tone-meter-container {
+    max-width: 650px;           /* Maximální šířka kontejneru - omezuje velikost na středních zařízeních */
+    margin: 20px auto;          /* Automatické centrování s 20px mezerou nahoře a dole */
+    padding: 20px;              /* Vnitřní odsazení pro obsah */
+    background: linear-gradient(135deg, #1a1a2e, #16213e); /* Diagonální gradient - tmavě modrá */
+    border-radius: 15px;        /* Zaoblené rohy pro moderní vzhled */
+    border: 2px solid #00ff88;  /* Zelený rámeček - hlavní barva aplikace */
+    color: white;               /* Základní bílá barva textu */
+    font-family: 'Courier New', monospace; /* Monospace font pro technický vzhled */
+}
+
+/* ==================================================
+   HLAVNÍ NADPIS APLIKACE
+   ================================================== */
+
+.tone-meter-title {
+    text-align: center;         /* Vycentrovaný text */
+    font-size: 24px;            /* Velký nadpis pro důležitost */
+    font-weight: bold;          /* Tučné písmo pro zvýraznění */
+    color: #00ff88;             /* Zelená barva odpovídající rámečku */
+    margin-bottom: 20px;        /* Spodní mezera od dalších elementů */
+}
+
+/* ==================================================
+   STAVOVÉ INDIKÁTORY APLIKACE
+   ================================================== */
+
+.tone-meter-status {
+    text-align: center;         /* Centrovaný text stavu */
+    padding: 10px;              /* Vnitřní odsazení pro lepší čitelnost */
+    border-radius: 8px;         /* Mírně zaoblené rohy */
+    margin-bottom: 20px;        /* Mezera od dalších elementů */
+    font-weight: bold;          /* Tučné písmo pro důležitost stavu */
+}
+
+/* Aktivní stav - mikrofon funguje */
+.tone-meter-status.active {
+    background-color: rgba(0, 255, 136, 0.2); /* Průhledná zelená - 20% průhlednost */
+    border: 1px solid #00ff88;  /* Zelený rámeček */
+}
+
+/* Neaktivní stav - mikrofon vypnutý */
+.tone-meter-status.inactive {
+    background-color: rgba(136, 136, 136, 0.2); /* Průhledná šedá */
+    border: 1px solid #888;     /* Šedý rámeček */
+}
+
+/* Chybový stav - problém s mikrofonem */
+.tone-meter-status.error {
+    background-color: rgba(255, 68, 68, 0.2); /* Průhledná červená */
+    border: 1px solid #ff4444; /* Červený rámeček */
+}
+
+/* Kalibrace probíhá */
+.tone-meter-status.calibrating {
+    background-color: rgba(255, 165, 0, 0.2); /* Průhledná oranžová */
+    border: 1px solid #ffa500; /* Oranžový rámeček */
+}
+
+/* ==================================================
+   OVLÁDACÍ TLAČÍTKA
+   ================================================== */
+
+.tone-meter-controls {
+    display: flex;              /* Flexbox pro uspořádání tlačítek */
+    gap: 10px;                  /* 10px mezera mezi tlačítky */
+    justify-content: center;    /* Centrování tlačítek */
+    margin-bottom: 20px;        /* Spodní mezera */
+    flex-wrap: wrap;            /* Zalomení na menších obrazovkách */
+}
+
+.tone-meter-btn {
+    padding: 12px 24px;         /* Vnitřní odsazení - 12px nahoře/dole, 24px vlevo/vpravo */
+    background: linear-gradient(135deg, #00ff88, #0088ff); /* Gradient ze zelené do modré */
+    border: none;               /* Bez rámečku */
+    border-radius: 8px;         /* Zaoblené rohy */
+    color: white;               /* Bílý text */
+    font-weight: bold;          /* Tučné písmo */
+    cursor: pointer;            /* Ukazatel ruky při najetí */
+    transition: all 0.3s ease;  /* Plynulé animace - 0.3 sekundy */
+    min-width: 120px;           /* Minimální šířka pro konzistentní vzhled */
+}
+
+/* Efekt při najetí myší - pouze pro aktivní tlačítka */
+.tone-meter-btn:hover:not(:disabled) {
+    transform: translateY(-2px); /* Posun o 2px nahoru */
+    box-shadow: 0 5px 15px rgba(0, 255, 136, 0.4); /* Zelený stín */
+}
+
+/* Neaktivní tlačítka */
+.tone-meter-btn:disabled {
+    opacity: 0.5;               /* 50% průhlednost */
+    cursor: not-allowed;        /* Zakázaný kurzor */
+}
+
+/* Speciální styl pro tlačítko kalibrace */
+.tone-meter-btn.calibrate {
+    background: linear-gradient(135deg, #ff8800, #ffaa00); /* Oranžový gradient */
+}
+
+/* ==================================================
+   SEKCE KALIBRACE A4
+   ================================================== */
+
+.tone-meter-calibration {
+    background: rgba(255, 136, 0, 0.1); /* Průhledné oranžové pozadí */
+    border: 1px solid #ff8800;  /* Oranžový rámeček */
+    border-radius: 10px;        /* Zaoblené rohy */
+    padding: 15px;              /* Vnitřní odsazení */
+    margin-bottom: 20px;        /* Spodní mezera */
+}
+
+.tone-meter-calibration h3 {
+    margin: 0 0 15px 0;         /* Pouze spodní mezera 15px */
+    text-align: center;         /* Centrovaný nadpis */
+    color: #ff8800;             /* Oranžová barva */
+    font-size: 16px;            /* Střední velikost nadpisu */
+}
+
+.tone-meter-a4-control {
+    display: flex;              /* Flexbox pro uspořádání v řádku */
+    align-items: center;        /* Vertikální centrování */
+    gap: 10px;                  /* Mezera mezi elementy */
+    margin-bottom: 15px;        /* Spodní mezera */
+}
+
+.tone-meter-a4-input {
+    background: #333;           /* Tmavě šedé pozadí */
+    border: 1px solid #555;     /* Světlejší šedý rámeček */
+    border-radius: 5px;         /* Mírně zaoblené rohy */
+    color: white;               /* Bílý text */
+    padding: 8px 12px;          /* Vnitřní odsazení */
+    font-family: 'Courier New', monospace; /* Stejný font jako aplikace */
+    width: 80px;                /* Pevná šířka pro čísla */
+}
+
+.tone-meter-a4-reset {
+    background: #666;           /* Středně šedé pozadí */
+    border: none;               /* Bez rámečku */
+    border-radius: 5px;         /* Zaoblené rohy */
+    color: white;               /* Bílý text */
+    padding: 8px 12px;          /* Vnitřní odsazení */
+    cursor: pointer;            /* Ukazatel ruky */
+    transition: background 0.2s; /* Plynulá změna pozadí */
+}
+
+.tone-meter-a4-reset:hover {
+    background: #777;           /* Světlejší šedá při najetí */
+}
+
+/* ==================================================
+   NASTAVENÍ MIKROFONU
+   ================================================== */
+
+.tone-meter-mic-controls {
+    background: rgba(0, 255, 136, 0.1); /* Průhledné zelené pozadí */
+    border: 1px solid #00ff88;  /* Zelený rámeček */
+    border-radius: 10px;        /* Zaoblené rohy */
+    padding: 15px;              /* Vnitřní odsazení */
+    margin-bottom: 20px;        /* Spodní mezera */
+}
+
+.tone-meter-mic-controls h3 {
+    margin: 0 0 15px 0;         /* Pouze spodní mezera */
+    text-align: center;         /* Centrovaný nadpis */
+    color: #00ff88;             /* Zelená barva */
+    font-size: 16px;            /* Střední velikost */
+}
+
+.tone-meter-slider-group {
+    margin-bottom: 15px;        /* Mezera mezi skupinami posuvníků */
+}
+
+.tone-meter-slider-label {
+    display: flex;              /* Flexbox pro rozložení */
+    justify-content: space-between; /* Mezera mezi texty */
+    margin-bottom: 5px;         /* Malá spodní mezera */
+    font-size: 12px;            /* Menší text pro popisky */
+    color: #ccc;                /* Světle šedá barva */
+}
+
+.tone-meter-slider {
+    width: 100%;                /* Plná šířka kontejneru */
+    height: 6px;                /* Výška posuvné lišty */
+    border-radius: 3px;         /* Zaoblené rohy lišty */
+    background: #333;           /* Tmavě šedé pozadí lišty */
+    outline: none;              /* Bez obrysu při focusu */
+    -webkit-appearance: none;   /* Odstranění výchozího stylu WebKit */
+}
+
+/* Styl jezdce v WebKit prohlížečích (Chrome, Safari) */
+.tone-meter-slider::-webkit-slider-thumb {
+    appearance: none;           /* Odstranění výchozího vzhledu */
+    width: 18px;                /* Šířka jezdce */
+    height: 18px;               /* Výška jezdce */
+    border-radius: 50%;         /* Kruhový tvar */
+    background: #00ff88;        /* Zelená barva */
+    cursor: pointer;            /* Ukazatel ruky */
+    transition: all 0.2s ease;  /* Plynulé animace */
+}
+
+.tone-meter-slider::-webkit-slider-thumb:hover {
+    background: #00cc6a;        /* Tmavší zelená při najetí */
+    transform: scale(1.1);      /* Mírné zvětšení o 10% */
+}
+
+/* Styl jezdce v Firefox */
+.tone-meter-slider::-moz-range-thumb {
+    width: 18px;                /* Šířka jezdce */
+    height: 18px;               /* Výška jezdce */
+    border-radius: 50%;         /* Kruhový tvar */
+    background: #00ff88;        /* Zelená barva */
+    cursor: pointer;            /* Ukazatel ruky */
+    border: none;               /* Bez rámečku */
+}
+
+/* ==================================================
+   ZOBRAZENÍ MĚŘENÝCH HODNOT
+   ================================================== */
+
+.tone-meter-display {
+    display: grid;              /* CSS Grid pro uspořádání */
+    grid-template-columns: repeat(3, 1fr); /* 3 stejné sloupce */
+    gap: 15px;                  /* 15px mezera mezi buňkami */
+    margin-bottom: 20px;        /* Spodní mezera */
+}
+
+.tone-meter-info {
+    text-align: center;         /* Centrovaný obsah */
+    background: rgba(255, 255, 255, 0.1); /* Průhledné bílé pozadí */
+    padding: 15px;              /* Vnitřní odsazení */
+    border-radius: 8px;         /* Zaoblené rohy */
+}
+
+.tone-meter-label {
+    font-size: 12px;            /* Malý text pro popisky */
+    color: #ccc;                /* Světle šedá barva */
+    margin-bottom: 5px;         /* Mezera pod popiskem */
+}
+
+.tone-meter-value {
+    font-size: 20px;            /* Velký text pro hodnoty */
+    font-weight: bold;          /* Tučné písmo */
+    color: #00ff88;             /* Zelená barva pro zdůraznění */
+}
+
+/* ==================================================
+   VIZUALIZÉR SPEKTRA
+   ================================================== */
+
+.tone-meter-visualizer {
+    width: 100%;                /* Plná šířka kontejneru */
+    height: 290px;              /* Pevná výška pro canvas */
+    border: 1px solid #00ff88;  /* Zelený rámeček */
+    border-radius: 8px;         /* Zaoblené rohy */
+    background: #001122;        /* Tmavě modrá barva pozadí */
+}
+
+/* ==================================================
+   VIZUÁLNÍ TUNER - HLAVNÍ KONTEJNER
+   ================================================== */
+
+.tone-meter-tuner {
+    background: rgba(0, 136, 255, 0.1); /* Průhledné modré pozadí */
+    border: 1px solid #0088ff;  /* Modrý rámeček */
+    border-radius: 10px;        /* Zaoblené rohy */
+    padding: 20px;              /* Větší vnitřní odsazení */
+    margin-bottom: 20px;        /* Spodní mezera */
+    
+}
+
+.tone-meter-tuner h3 {
+    margin: 0 0 20px 0;         /* Pouze spodní mezera */
+    text-align: center;         /* Centrovaný nadpis */
+    color: #0088ff;             /* Modrá barva */
+    font-size: 18px;            /* Větší nadpis */
+}
+
+.tone-meter-tuner-display {
+    display: flex;              /* Flexbox pro vertikální uspořádání */
+    flex-direction: column;     /* Sloupec (shora dolů) */
+    align-items: center;        /* Centrování horizontálně */
+    gap: 15px;                  /* Mezera mezi elementy */
+}
+
+/* ==================================================
+   ZOBRAZENÍ AKTUÁLNÍ NOTY
+   ================================================== */
+
+.tone-meter-current-note {
+    font-size: 20px;            /* Velmi velký text pro notu */
+    font-weight: bold;          /* Tučné písmo */
+    color: #0088ff;             /* Modrá barva */
+    text-align: center;         /* Centrovaný text */
+    min-height: 30px;           /* Minimální výška pro stabilitu */
+    display: flex;              /* Flexbox pro centrování */
+    align-items: center;        /* Vertikální centrování */
+    justify-content: center;    /* Horizontální centrování */
+}
+
+/* ==================================================
+   KONTEJNER PRO TUNER JEHLU
+   ================================================== */
+
+.tone-meter-tuner-needle-container {
+    position: relative;         /* Relativní pozice pro absolutní děti */
+    width: 150px;               /* Pevná šířka tuneru */
+    height: 50px;              /* Výška polovičního kruhu */
+    background: rgba(0, 0, 0, 0.3); /* Průhledné tmavé pozadí */
+    border-radius: 50px 50px 0 0; /* Polokruhový tvar (pouze horní rohy) */
+    border: 2px solid #333;     /* Tmavě šedý rámeček */
+    overflow: hidden;           /* Skrytí přečnívajícího obsahu */
+}
+
+/* ==================================================
+   STUPNICE TUNERU
+   ================================================== */
+
+.tone-meter-tuner-scale {
+    position: absolute;         /* Absolutní pozice v kontejneru */
+    top: 10px;                  /* 10px od horního okraje */
+    left: 0;                    /* Od levého okraje */
+    right: 0;                   /* Do pravého okraje */
+    height: 30px;               /* Výška oblasti stupnice */
+}
+
+.tone-meter-scale-mark {
+    position: absolute;         /* Absolutní pozice značek */
+    width: 2px;                 /* Šířka běžné značky */
+    height: 20px;               /* Výška běžné značky */
+    background: #555;           /* Tmavě šedá barva */
+    top: 0;                     /* Od horního okraje stupnice */
+}
+
+.tone-meter-scale-mark.major {
+    width: 3px;                 /* Širší hlavní značky */
+    height: 30px;               /* Vyšší hlavní značky */
+    background: #777;           /* Světlejší šedá */
+}
+
+.tone-meter-scale-mark.center {
+    background: #00ff88;        /* Zelená barva pro střed */
+    width: 4px;                 /* Nejširší centrální značka */
+}
+
+/* ==================================================
+   JEHLA TUNERU
+   ================================================== */
+
+.tone-meter-tuner-needle {
+    position: absolute;         /* Absolutní pozice */
+    bottom: 10px;               /* 10px od spodního okraje */
+    left: 50%;                  /* Na střed horizontálně */
+    width: 4px;                 /* Šířka jehly */
+    height: 70px;               /* Výška jehly */
+    background: linear-gradient(to top, #ff4444, #ffaa00); /* Gradient z červené do oranžové */
+    border-radius: 2px;         /* Mírně zaoblené rohy */
+    transform-origin: bottom center; /* Bod rotace na spodním středu */
+    transform: translateX(-50%) rotate(0deg); /* Centrování a výchozí rotace */
+    transition: transform 0.1s ease-out; /* Plynulý pohyb jehly */
+    box-shadow: 0 0 10px rgba(255, 170, 0, 0.5); /* Oranžový zásvit */
+}
+
+.tone-meter-tuner-needle.in-tune {
+    background: linear-gradient(to top, #00ff88, #00cc6a); /* Zelený gradient při ladění */
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.8); /* Silnější zelený zásvit */
+}
+
+/* ==================================================
+   ZOBRAZENÍ CENTŮ (ODCHYLKA OD NOTY)
+   ================================================== */
+
+.tone-meter-cent-display {
+    display: flex;              /* Flexbox pro uspořádání */
+    justify-content: space-between; /* Mezera mezi elementy */
+    align-items: center;        /* Vertikální centrování */
+    width: 150px;               /* Stejná šířka jako tuner */
+    font-size: 14px;            /* Střední velikost textu */
+}
+
+.tone-meter-cent-value {
+    font-size: 18px;            /* Větší text pro hodnotu centů */
+    font-weight: bold;          /* Tučné písmo */
+    color: #ffaa00;             /* Výchozí oranžová barva */
+    min-width: 80px;            /* Minimální šířka pro stabilitu */
+    text-align: center;         /* Centrovaný text */
+}
+
+.tone-meter-cent-value.in-tune {
+    color: #00ff88;             /* Zelená barva při správném ladění */
+}
+
+.tone-meter-cent-value.sharp {
+    color: #ff6666;             /* Světle červená pro křížky (vysoké tóny) */
+}
+
+.tone-meter-cent-value.flat {
+    color: #6666ff;             /* Světle modrá pro béčka (nízké tóny) */
+}
+
+.tone-meter-frequency-diff {
+    font-size: 12px;            /* Malý text pro doplňující info */
+    color: #aaa;                /* Světle šedá barva */
+    text-align: center;         /* Centrovaný text */
+    margin-top: 5px;            /* Malá horní mezera */
+}
+
+/* ==================================================
+   INFORMACE O KALIBRACI
+   ================================================== */
+
+.tone-meter-calibration-info {
+    background: transparent /* Průhledné oranžové pozadí */
+    border: 1px solid transparent; /* Oranžový rámeček */
+    border-radius: 8px;         /* Zaoblené rohy */
+    padding: 10px;              /* Vnitřní odsazení */
+    margin-top: 10px;           /* Horní mezera */
+    font-size: 11px;            /* Malý text */
+    text-align: center;         /* Centrovaný text */
+    color: #ffa500;             /* Oranžová barva textu */
+}
+
+
+
+:root {
+    /* Pozadí visualizeru */
+    --tonemeter-bg-normal: #001122;        /* Normální režim */
+    --tonemeter-bg-calibration: #332200;   /* Během kalibrace */
+    
+    /* Barvy sloupků - normální režim */
+    --tonemeter-bar-top: #DC143C;          /* Vrchní část gradientu */
+    --tonemeter-bar-mid: #ADFF2F;          /* Střední část gradientu */
+    --tonemeter-bar-bottom: #1E90FF;       /* Spodní část gradientu */
+    
+    /* Barvy sloupků - kalibrace */
+    --tonemeter-bar-cal-top: #ffaa00;      /* Vrchní část při kalibraci */
+    --tonemeter-bar-cal-mid: #ff8800;      /* Střední část při kalibraci */
+    --tonemeter-bar-cal-bottom: #332200;   /* Spodní část při kalibraci */
+    
+    /* Barvy textu */
+    --tonemeter-text-normal: #00ff88;      /* Text v normálním režimu */
+    --tonemeter-text-calibration: #ffaa00; /* Text během kalibrace */
+    --tonemeter-calibration-text: #ffaa00; /* Text indikátoru kalibrace */
+}
+
+/* Příklad alternativního tmavého motivu */
+.dark-theme {
+    --tonemeter-bg-normal: #1a1a1a;
+    --tonemeter-bg-calibration: #2a1a00;
+    --tonemeter-bar-top: #00cc66;
+    --tonemeter-bar-mid: #0066cc;
+    --tonemeter-bar-bottom: #001a33;
+    --tonemeter-bar-cal-top: #cc8800;
+    --tonemeter-bar-cal-mid: #aa6600;
+    --tonemeter-bar-cal-bottom: #2a1a00;
+    --tonemeter-text-normal: #00cc66;
+    --tonemeter-text-calibration: #cc8800;
+    --tonemeter-calibration-text: #cc8800;
+}
+
+/* Příklad světlého motivu */
+.light-theme {
+    --tonemeter-bg-normal: #f0f8ff;
+    --tonemeter-bg-calibration: #fff8e0;
+    --tonemeter-bar-top: #006644;
+    --tonemeter-bar-mid: #004488;
+    --tonemeter-bar-bottom: #e0f0ff;
+    --tonemeter-bar-cal-top: #886600;
+    --tonemeter-bar-cal-mid: #664400;
+    --tonemeter-bar-cal-bottom: #fff8e0;
+    --tonemeter-text-normal: #006644;
+    --tonemeter-text-calibration: #886600;
+    --tonemeter-calibration-text: #886600;
+}
+
+/* Pro snadné přepínání témat */
+body.dark { @extend .dark-theme; }
+body.light { @extend .light-theme; }
