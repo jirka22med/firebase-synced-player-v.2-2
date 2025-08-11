@@ -18,6 +18,7 @@ class VoiceController {
         
         // DOM elements
         this.toggleBtn = null;
+        this.helpBtn = null; // 🆕 Nové tlačítko pro help
         this.statusIndicator = null;
         this.settingsPanel = null;
         this.commandsList = null;
@@ -541,10 +542,18 @@ class VoiceController {
         this.statusIndicator.className = 'voice-status-indicator';
         this.toggleBtn.appendChild(this.statusIndicator);
         
+        // 🆕 Help button pro hlasové příkazy
+        this.helpBtn = document.createElement('button');
+        this.helpBtn.id = 'voice-commands-help';
+        this.helpBtn.className = 'control-button voice-help-button';
+        this.helpBtn.title = 'Hlasové příkazy (?)';
+        this.helpBtn.innerHTML = '📋';
+        
         // Přidání do control panelu
         const controlsDiv = document.querySelector('#control-panel .controls');
         if (controlsDiv) {
             controlsDiv.appendChild(this.toggleBtn);
+            controlsDiv.appendChild(this.helpBtn); // 🆕 Přidáno help tlačítko
         }
 
         // Settings panel
@@ -672,6 +681,25 @@ class VoiceController {
                 background: rgba(255, 193, 7, 0.2);
                 color: #ffc107;
                 box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+            }
+            
+            /* 🆕 Styl pro help button */
+            .voice-help-button {
+                background: rgba(0, 123, 255, 0.1);
+                border: 1px solid rgba(0, 123, 255, 0.3);
+                color: #007bff;
+                transition: all 0.3s ease;
+            }
+            
+            .voice-help-button:hover {
+                background: rgba(0, 123, 255, 0.2);
+                color: #0056b3;
+                box-shadow: 0 0 8px rgba(0, 123, 255, 0.4);
+                transform: translateY(-1px);
+            }
+            
+            .voice-help-button:active {
+                transform: translateY(0);
             }
             
             .voice-status-indicator {
@@ -949,6 +977,12 @@ class VoiceController {
             this.toggle();
         });
 
+        // 🆕 Help button event listener
+        this.helpBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.showSettings();
+        });
+
         // Settings panel events
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('close-settings')) {
@@ -990,7 +1024,7 @@ class VoiceController {
                 this.toggle();
             }
 
-            if (e.key === 'F1') {
+            if (e.key === 'h' && e.ctrlKey) { // 🆕 Ctrl+H pro help
                 e.preventDefault();
                 this.showSettings();
             }
@@ -1010,7 +1044,8 @@ class VoiceController {
         document.addEventListener('click', (e) => {
             if (!this.settingsPanel.classList.contains('hidden') && 
                 !this.settingsPanel.contains(e.target) && 
-                e.target !== this.toggleBtn) {
+                e.target !== this.toggleBtn && 
+                e.target !== this.helpBtn) { // 🆕 Přidáno help button
                 this.hideSettings();
             }
         });
