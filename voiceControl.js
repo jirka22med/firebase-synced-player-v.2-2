@@ -27,6 +27,10 @@ class VoiceController {
         this.voiceResponses = true;
         this.responseVoice = null;
         
+        // 🆕 Audio management
+        this.wasPlayingBeforeRecognition = false;
+        this.audioPreventionActive = true; // Zabránit automatickému pauzování
+        
         // Command patterns
         this.commands = new Map();
         this.lastCommand = null;
@@ -137,15 +141,48 @@ class VoiceController {
         this.recognition.lang = this.currentLanguage;
         this.recognition.maxAlternatives = 3;
         
+        // 🆕 Zabránit automatickému pauzování audia
+        this.wasPlayingBeforeRecognition = false;
+        this.audioPreventionActive = true; // Můžeme vypnout v nastavení
+        
         this.recognition.onstart = () => {
             this.isListening = true;
             this.updateStatusIndicator('listening');
+            
+            // 🆕 Uložit stav přehrávání a zabránit pauzování
+            const audioPlayer = document.getElementById('audioPlayer');
+            if (audioPlayer && !audioPlayer.paused && this.audioPreventionActive) {
+                this.wasPlayingBeforeRecognition = true;
+                
+                // Pokusit se zabránit automatické pauze
+                setTimeout(() => {
+                    if (audioPlayer.paused && this.wasPlayingBeforeRecognition) {
+                        audioPlayer.play().catch(err => {
+                            if (DEBUG_VOICE) console.log("🎤 Auto-resume failed:", err);
+                        });
+                    }
+                }, 100);
+            }
+            
             if (DEBUG_VOICE) console.log("🎤 Voice recognition started");
         };
         
         this.recognition.onend = () => {
             this.isListening = false;
             this.updateStatusIndicator('inactive');
+            
+            // 🆕 Obnovit přehrávání pokud bylo aktivní
+            if (this.wasPlayingBeforeRecognition && this.audioPreventionActive) {
+                const audioPlayer = document.getElementById('audioPlayer');
+                if (audioPlayer && audioPlayer.paused) {
+                    setTimeout(() => {
+                        audioPlayer.play().catch(err => {
+                            if (DEBUG_VOICE) console.log("🎤 Auto-resume after recognition failed:", err);
+                        });
+                    }, 50);
+                }
+                this.wasPlayingBeforeRecognition = false;
+            }
             
             // Auto-restart pokud je aktivní
             if (this.isEnabled) {
@@ -583,6 +620,14 @@ class VoiceController {
                 </div>
                 
                 <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="audio-prevention-toggle" ${this.audioPreventionActive ? 'checked' : ''}>
+                        Zabránit pauzování hudby
+                    </label>
+                    <small>Automaticky obnoví přehrávání po hlasových příkazech</small>
+                </div>
+                
+                <div class="setting-group">
                     <label for="voice-confidence">Citlivost rozpoznávání:</label>
                     <input type="range" id="voice-confidence" min="0.3" max="0.9" step="0.1" value="${this.confidence}">
                     <span class="confidence-value">${Math.round(this.confidence * 100)}%</span>
@@ -997,6 +1042,17 @@ class VoiceController {
                 this.saveSettings();
             }
             
+            if (e.target.id === 'audio-prevention-toggle') {
+                this.audioPreventionActive = e.target.checked;
+                this.saveSettings();
+                this.showNotification(
+                    this.audioPreventionActive ? 
+                    '🎵 Ochrana před pauzováním aktivována' : 
+                    '⏸️ Ochrana před pauzováním deaktivována', 
+                    'info'
+                );
+            }
+            
             if (e.target.id === 'voice-confidence') {
                 this.confidence = parseFloat(e.target.value);
                 document.querySelector('.confidence-value').textContent = 
@@ -1170,6 +1226,7 @@ class VoiceController {
             voiceResponses: this.voiceResponses,
             confidence: this.confidence,
             language: this.language,
+            audioPreventionActive: this.audioPreventionActive, // 🆕 Nové nastavení
             timestamp: Date.now()
         };
 
@@ -1221,6 +1278,7 @@ class VoiceController {
         this.voiceResponses = settings.voiceResponses ?? true;
         this.confidence = settings.confidence ?? 0.7;
         this.language = settings.language ?? 'cs-CZ';
+        this.audioPreventionActive = settings.audioPreventionActive ?? true; // 🆕 Default zapnuto
         this.currentLanguage = this.language;
     }
 
@@ -1231,7 +1289,8 @@ class VoiceController {
                 isEnabled: this.isEnabled,
                 voiceResponses: this.voiceResponses,
                 confidence: this.confidence,
-                language: this.language
+                language: this.language,
+                audioPreventionActive: this.audioPreventionActive // 🆕 Export nastavení
             },
             commandHistory: this.commandHistory,
             timestamp: Date.now(),
