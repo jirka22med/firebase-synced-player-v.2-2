@@ -1,1165 +1,637 @@
 /**
- * 🖖 STAR TREK VOICE CONTROL MODULE - VERZE 2.0 VYLEPŠENÁ
- * Více admirále Jiříku & Admiral Claude
- * "Computer, engage!" - Vylepšené voice commands pro audio přehrávač
+ * 🖖 STAR TREK VOICE CONTROL MODULE
+ * Více admirál Jiřík & Admirál Claude.AI
+ * "Computer, engage!" - Voice commands pro audio přehrávač
  */
 
-const DEBUG_VOICE = true; // Zapni debug pro testování
+const DEBUG_VOICE = false; // Debug mode pro voice modul
 
-class EnhancedVoiceController {
+class VoiceController {
     constructor() {
-        // Inicializace proměnných
         this.recognition = null;
         this.isListening = false;
         this.isEnabled = false;
-        this.confidence = 0.5; // Snížená minimální jistota pro lepší detekci
-        this.language = 'cs-CZ';
-        this.fallbackLanguage = 'en-US';
-        this.currentLanguage = this.language;
-        
-        // DOM elementy
-        this.toggleBtn = null;
-        this.helpBtn = null;
-        this.statusIndicator = null;
-        this.settingsPanel = null;
-        this.debugPanel = null;
-        
-        // Hlasové odpovědi
-        this.voiceResponses = true;
-        this.responseVoice = null;
-        this.speechQueue = [];
-        this.isSpeaking = false;
-        
-        // Správa audia - vylepšeno
-        this.wasPlayingBeforeRecognition = false;
-        this.audioPreventionActive = true;
-        this.lastCommandWasPause = false;
-        this.commandInProgress = false;
-        this.recognitionAttempts = 0;
-        this.maxReconnectAttempts = 5;
-        
-        // Vylepšené příkazy s fuzzy matching
-        this.commands = [];
-        this.commandAliases = new Map();
-        this.lastCommand = null;
+        this.lastCommand = '';
+        this.confidenceThreshold = 0.7;
         this.commandHistory = [];
-        this.recentFailures = [];
+        this.maxHistoryLength = 50;
         
-        // Nové vlastnosti pro stabilitu
-        this.restartTimer = null;
-        this.lastRestartTime = 0;
-        this.minRestartInterval = 2000;
-        this.isRestarting = false;
+        // UI elements
+        this.toggleBtn = null;
+        this.statusIndicator = null;
+        this.commandDisplay = null;
+        this.settingsPanel = null;
         
-        // Detekce mobilního zařízení
-        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        // Voice command patterns
+        this.commandPatterns = this.initializeCommandPatterns();
+        
+        // Responses
+        this.responses = this.initializeResponses();
         
         this.init();
     }
 
-    // Vylepšená inicializace
     async init() {
-        if (DEBUG_VOICE) console.log("🎤 EnhancedVoiceController: Inicializace modulu v2.0");
+        if (DEBUG_VOICE) console.log("🎤 VoiceController: Inicializace modulu");
         
+        // Kontrola podpory prohlížeče
         if (!this.checkBrowserSupport()) {
-            this.showNotification("Váš prohlížeč nepodporuje rozpoznávání řeči", 'error');
+            console.warn("VoiceController: Speech Recognition není podporováno");
+            this.showNotification("Voice Control není podporován v tomto prohlížeči", 'error');
             return;
         }
         
         await this.loadSettings();
-        this.setupEnhancedCommands();
-        this.createEnhancedUI();
-        this.setupRobustRecognition();
+        this.setupSpeechRecognition();
+        this.createUI();
         this.attachEventListeners();
-        this.injectEnhancedStyles();
-        
-        if (this.isEnabled) {
-            this.startListening();
-        }
-        
-        // Přidáme sledování kvality rozpoznávání
-        this.startQualityMonitoring();
+        this.injectStyles();
     }
 
-    // Kontroluje podporu s detailnějšími informacemi
     checkBrowserSupport() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const hasSpeechSynthesis = 'speechSynthesis' in window;
-        
-        if (!SpeechRecognition) {
-            console.error("VoiceController: Speech Recognition není podporováno");
-            return false;
-        }
-        
-        if (DEBUG_VOICE) {
-            console.log("🎤 Podpora prohlížeče:");
-            console.log("- SpeechRecognition:", !!SpeechRecognition);
-            console.log("- SpeechSynthesis:", hasSpeechSynthesis);
-            console.log("- User Agent:", navigator.userAgent);
-        }
-        
-        return true;
+        return ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
     }
 
-    // Vylepšené příkazy s více variantami a fuzzy matching
-    setupEnhancedCommands() {
-        const enhancedCommands = [
-            // Základní ovládání - více variant
-            { 
-                patterns: ['přehrát', 'play', 'spustit', 'start', 'zapni', 'začni', 'pustit', 'hraj'], 
-                action: 'play', 
-                description: 'Spustí přehrávání',
-                fuzzy: ['prehrat', 'prehra', 'spust', 'zapnout']
-            },
-            { 
-                patterns: ['pauza', 'pause', 'pozastavit', 'stop', 'stoj', 'zastav', 'pozastav', 'přestaň'], 
-                action: 'pause', 
-                description: 'Pozastaví přehrávání',
-                fuzzy: ['pauze', 'pozastat', 'stopit']
-            },
-            { 
-                patterns: ['další', 'next', 'následující', 'skip', 'dalsi', 'skipni', 'přeskoč'], 
-                action: 'next', 
-                description: 'Další skladba',
-                fuzzy: ['nasledujici', 'preskoc']
-            },
-            { 
-                patterns: ['předchozí', 'previous', 'předešlá', 'back', 'zpět', 'predchozi'], 
-                action: 'previous', 
-                description: 'Předchozí skladba',
-                fuzzy: ['predesla', 'zpet']
-            },
-            { 
-                patterns: ['restart', 'znovu', 'od začátku', 'reset', 'zacatek'], 
-                action: 'restart', 
-                description: 'Restart skladby',
-                fuzzy: ['od zacatku']
-            },
-            
-            // Hlasitost - rozšířeno
-            { 
-                patterns: ['hlasitost nahoru', 'volume up', 'zesilte', 'louder', 'hlasiteji', 'vic'], 
-                action: 'volumeUp', 
-                description: 'Zvýší hlasitost',
-                fuzzy: ['hlasitost nahorů', 'hlasiteji']
-            },
-            { 
-                patterns: ['hlasitost dolů', 'volume down', 'ztiště', 'quieter', 'tišeji', 'míň'], 
-                action: 'volumeDown', 
-                description: 'Sníží hlasitost',
-                fuzzy: ['hlasitost dolu', 'tiseji', 'min']
-            },
-            { 
-                patterns: ['ztlumit', 'mute', 'ticho', 'silence', 'vypni zvuk'], 
-                action: 'mute', 
-                description: 'Ztlumí zvuk',
-                fuzzy: ['ztlum']
-            },
-            { 
-                patterns: ['zrušit ztlumení', 'unmute', 'sound on', 'zapni zvuk', 'obnovit zvuk'], 
-                action: 'unmute', 
-                description: 'Zruší ztlumení',
-                fuzzy: ['zrusit ztlumeni', 'obnov zvuk']
-            },
-            
-            // Nové jednoduché příkazy
-            { 
-                patterns: ['help', 'nápověda', 'příkazy', 'commands', 'pomoc'], 
-                action: 'showHelp', 
-                description: 'Zobrazí dostupné příkazy',
-                fuzzy: ['napoveda', 'prikazy']
-            },
-            { 
-                patterns: ['vypni hlas', 'voice off', 'stop listening', 'konec', 'stačí', 'hotovo'], 
-                action: 'disableVoice', 
-                description: 'Vypne hlasové ovládání',
-                fuzzy: ['staci']
-            },
-            
-            // Star Trek příkazy
-            { 
-                patterns: ['computer', 'počítač', 'engage'], 
-                action: 'acknowledge', 
-                description: 'Potvrzení připravenosti',
-                fuzzy: ['pocitac']
-            },
-            { 
-                patterns: ['co hraje', 'aktuální skladba', 'what playing'], 
-                action: 'getCurrentTrack', 
-                description: 'Oznámí aktuální skladbu',
-                fuzzy: ['co hraj', 'aktualni skladba']
-            }
-        ];
-
-        // Vytvoříme mapu aliasů pro rychlé vyhledávání
-        this.commandAliases.clear();
-        
-        enhancedCommands.forEach(cmd => {
-            // Standardní patterns
-            cmd.patterns.forEach(pattern => {
-                this.commands.push({
-                    regex: new RegExp(`\\b${this.escapeRegExp(pattern)}\\b`, 'i'),
-                    fuzzyRegex: new RegExp(this.escapeRegExp(pattern).replace(/./g, '$&.*?'), 'i'),
-                    action: cmd.action,
-                    description: cmd.description,
-                    pattern,
-                    originalPattern: pattern
-                });
-                
-                this.commandAliases.set(pattern.toLowerCase(), cmd.action);
-            });
-            
-            // Fuzzy patterns pro čestinu s diakritikou
-            if (cmd.fuzzy) {
-                cmd.fuzzy.forEach(fuzzyPattern => {
-                    this.commands.push({
-                        regex: new RegExp(`\\b${this.escapeRegExp(fuzzyPattern)}\\b`, 'i'),
-                        fuzzyRegex: new RegExp(this.escapeRegExp(fuzzyPattern).replace(/./g, '$&.*?'), 'i'),
-                        action: cmd.action,
-                        description: cmd.description,
-                        pattern: fuzzyPattern,
-                        originalPattern: fuzzyPattern,
-                        isFuzzy: true
-                    });
-                    
-                    this.commandAliases.set(fuzzyPattern.toLowerCase(), cmd.action);
-                });
-            }
-        });
-
-        if (DEBUG_VOICE) {
-            console.log("🎤 Enhanced commands loaded:", this.commands.length);
-            console.log("🎤 Command aliases:", this.commandAliases.size);
-        }
-    }
-
-    // Helper funkce pro escapování RegExp
-    escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
-    // Robustnější rozpoznávání řeči
-    setupRobustRecognition() {
+    setupSpeechRecognition() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         this.recognition = new SpeechRecognition();
         
-        // Optimalizované nastavení pro českou řeč
         this.recognition.continuous = true;
-        this.recognition.interimResults = true; // Povolíme interim pro lepší debugging
-        this.recognition.lang = this.currentLanguage;
-        this.recognition.maxAlternatives = 5; // Více alternativ
+        this.recognition.interimResults = false;
+        this.recognition.lang = 'cs-CZ'; // Čeština primárně
+        this.recognition.maxAlternatives = 3;
         
         this.recognition.onstart = () => {
             this.isListening = true;
-            this.isRestarting = false;
-            this.recognitionAttempts = 0;
-            this.updateStatusIndicator('listening');
-            
-            if (DEBUG_VOICE) console.log("🎤 Voice recognition started successfully");
+            this.updateUI();
+            if (DEBUG_VOICE) console.log("🎤 Voice Recognition started");
         };
         
         this.recognition.onend = () => {
             this.isListening = false;
-            this.updateStatusIndicator('inactive');
+            this.updateUI();
+            if (DEBUG_VOICE) console.log("🎤 Voice Recognition ended");
             
-            if (DEBUG_VOICE) {
-                console.log("🎤 Voice recognition ended, enabled:", this.isEnabled, "restarting:", this.isRestarting);
+            // Auto-restart pokud je enabled
+            if (this.isEnabled) {
+                setTimeout(() => this.startListening(), 1000);
             }
-            
-            // Robustnější restart logika
-            if (this.isEnabled && !this.isSpeaking && !this.isRestarting) {
-                this.scheduleRestart();
-            }
-        };
-        
-        this.recognition.onerror = (event) => {
-            const error = event.error;
-            
-            if (DEBUG_VOICE) {
-                console.log(`🎤 Recognition error: ${error}`, event);
-            }
-            
-            // Seznam benigních chyb, které můžeme ignorovat
-            const benignErrors = ['no-speech', 'aborted'];
-            if (benignErrors.includes(error)) {
-                return;
-            }
-            
-            // Vážnější chyby
-            if (error === 'not-allowed') {
-                this.showNotification("❌ Přístup k mikrofonu byl odepřen", 'error');
-                this.disable();
-                return;
-            }
-            
-            if (error === 'network') {
-                this.showNotification("🌐 Problém se sítí, zkouším znovu", 'warn');
-                this.scheduleRestart(3000);
-                return;
-            }
-            
-            // Audio capture chyby
-            if (error === 'audio-capture') {
-                this.recognitionAttempts++;
-                if (this.recognitionAttempts < this.maxReconnectAttempts) {
-                    this.showNotification("🎤 Problém s mikrofonem, reconnecting...", 'warn');
-                    this.scheduleRestart(2000);
-                } else {
-                    this.showNotification("❌ Opakované problémy s mikrofonem", 'error');
-                    this.disable();
-                }
-                return;
-            }
-            
-            this.updateStatusIndicator('error');
         };
         
         this.recognition.onresult = (event) => {
-            // Zpracování všech výsledků včetně interim
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                const result = event.results[i];
-                const transcript = result[0].transcript.trim().toLowerCase();
-                const confidence = result[0].confidence || 0;
-                
-                if (DEBUG_VOICE) {
-                    console.log(`🎤 ${result.isFinal ? 'FINAL' : 'INTERIM'}:`, transcript, `(${Math.round(confidence * 100)}%)`);
-                    
-                    // Zobrazíme všechny alternativy
-                    if (result.length > 1) {
-                        console.log("🎤 Alternatives:", Array.from(result).map(r => `"${r.transcript}" (${Math.round(r.confidence * 100)}%)`));
-                    }
-                }
-                
-                if (result.isFinal) {
-                    this.processEnhancedCommand(transcript, confidence, result);
-                }
-            }
+            this.handleSpeechResult(event);
         };
         
-        // Načítání hlasů
-        if ('speechSynthesis' in window) {
-            this.loadVoices();
-            window.speechSynthesis.onvoiceschanged = () => this.loadVoices();
-        }
+        this.recognition.onerror = (event) => {
+            console.error("Voice Recognition Error:", event.error);
+            this.handleError(event.error);
+        };
+        
+        this.recognition.onnomatch = () => {
+            if (DEBUG_VOICE) console.log("🎤 No match found");
+        };
     }
 
-    // Vylepšené zpracování příkazů s fuzzy matching
-    processEnhancedCommand(transcript, confidence, allResults) {
-        // Přidáme do debug panelu
-        this.addToDebugLog('input', transcript, confidence);
-        
-        let bestMatch = null;
-        let matchScore = 0;
-        let matchMethod = '';
-        
-        // Zkusíme všechny alternativy z rozpoznávání
-        const alternatives = Array.from(allResults).map(r => ({
-            text: r.transcript.trim().toLowerCase(),
-            confidence: r.confidence || 0
-        }));
-        
-        for (const alt of alternatives) {
-            const match = this.findBestCommand(alt.text, alt.confidence);
-            if (match && match.score > matchScore) {
-                bestMatch = match;
-                matchScore = match.score;
-            }
-        }
-        
-        if (bestMatch && matchScore > 0.3) { // Nižší práh pro akceptaci
-            this.updateStatusIndicator('processing');
-            this.executeCommand(bestMatch.command, transcript, confidence);
-            this.addToDebugLog('match', `${bestMatch.command.action} (${bestMatch.method}, score: ${matchScore.toFixed(2)})`, confidence);
+    initializeCommandPatterns() {
+        return {
+            // Základní ovládání
+            play: [
+                /^(computer\s+)?(start|play|begin|engage|spustit|přehrát)$/i,
+                /^(computer\s+)?(resume|pokračovat|continue)$/i
+            ],
+            pause: [
+                /^(computer\s+)?(pause|stop|zastavit|pozastavit)$/i,
+                /^(computer\s+)?(halt|freeze|zmrazit)$/i
+            ],
+            next: [
+                /^(computer\s+)?(next|další|forward|skip)(\s+track|\s+song|\s+skladbu)?$/i,
+                /^(computer\s+)?(advance|pokračuj)(\s+to\s+next)?$/i
+            ],
+            previous: [
+                /^(computer\s+)?(previous|předchozí|back|zpět)(\s+track|\s+song|\s+skladbu)?$/i,
+                /^(computer\s+)?(go\s+back|vrať\s+se)$/i
+            ],
             
-            // Přidáme do historie
-            this.commandHistory.unshift({
-                transcript,
-                command: bestMatch.command.action,
-                confidence,
-                matchScore,
-                method: bestMatch.method,
-                timestamp: Date.now()
-            });
+            // Hlasitost
+            volumeUp: [
+                /^(computer\s+)?(volume\s+up|increase\s+volume|zvýšit?\s+hlasitost|hlasitěji)$/i,
+                /^(computer\s+)?(louder|hlasitěji|more\s+volume)$/i
+            ],
+            volumeDown: [
+                /^(computer\s+)?(volume\s+down|decrease\s+volume|snížit?\s+hlasitost|tišeji)$/i,
+                /^(computer\s+)?(quieter|tišeji|less\s+volume)$/i
+            ],
+            mute: [
+                /^(computer\s+)?(mute|ztlumit|silence|ticho)$/i,
+                /^(computer\s+)?(turn\s+off\s+sound|vypnout\s+zvuk)$/i
+            ],
+            unmute: [
+                /^(computer\s+)?(unmute|zapnout\s+zvuk|sound\s+on)$/i
+            ],
             
-            if (this.commandHistory.length > 50) {
-                this.commandHistory = this.commandHistory.slice(0, 50);
-            }
-        } else {
-            // Přidáme failed attempt pro analýzu
-            this.recentFailures.push({
-                transcript,
-                confidence,
-                alternatives: alternatives,
-                timestamp: Date.now()
-            });
+            // Speciální funkce
+            shuffle: [
+                /^(computer\s+)?(shuffle|náhodně|random|mix)(\s+playlist|\s+tracky)?$/i,
+                /^(computer\s+)?(randomize|zamíchej)$/i
+            ],
+            repeat: [
+                /^(computer\s+)?(repeat|loop|opakovat|smyčka)(\s+this|\s+track|\s+song)?$/i,
+                /^(computer\s+)?(replay|znovu)$/i
+            ],
             
-            if (this.recentFailures.length > 20) {
-                this.recentFailures = this.recentFailures.slice(0, 20);
-            }
+            // Navigace
+            restart: [
+                /^(computer\s+)?(restart|začátek|beginning|reset|znovu\s+od\s+začátku)$/i,
+                /^(computer\s+)?(start\s+over|od\s+začátku)$/i
+            ],
             
-            this.addToDebugLog('fail', transcript, confidence);
+            // Informace
+            status: [
+                /^(computer\s+)?(what's\s+playing|co\s+hraje|current\s+track|aktuální\s+skladba)$/i,
+                /^(computer\s+)?(status|report|stav)$/i
+            ],
+            time: [
+                /^(computer\s+)?(what\s+time|kolik\s+je\s+hodin|current\s+time)$/i,
+                /^(computer\s+)?(time\s+remaining|zbývající\s+čas)$/i
+            ],
             
-            if (DEBUG_VOICE) {
-                console.log("🎤 No command matched for:", transcript);
-                console.log("🎤 Best score was:", matchScore);
-            }
+            // Záložky (integrace s bookmarkManager)
+            bookmark: [
+                /^(computer\s+)?(bookmark|záložka|mark\s+this|označ\s+toto)(\s+position|\s+pozici)?$/i,
+                /^(computer\s+)?(save\s+position|ulož\s+pozici)$/i
+            ],
             
-            // Inteligentní odpověď na základě podobnosti
-            if (matchScore > 0.2) {
-                this.speak("Skoro jsem pochopil, zkuste to prosím znovu");
-            } else {
-                this.speak("Nerozumím tomuto příkazu");
-            }
-        }
+            // Systémové
+            fullscreen: [
+                /^(computer\s+)?(fullscreen|full\s+screen|celá\s+obrazovka)$/i,
+                /^(computer\s+)?(maximize|maximalizovat)$/i
+            ],
+            minimize: [
+                /^(computer\s+)?(minimize|exit\s+fullscreen|ukončit\s+celou\s+obrazovku)$/i
+            ],
+            
+            // Speciální Star Trek příkazy
+            engage: [
+                /^(computer\s+)?engage$/i,
+                /^(computer\s+)?make\s+it\s+so$/i
+            ],
+            red_alert: [
+                /^(computer\s+)?red\s+alert$/i,
+                /^(computer\s+)?poplach$/i
+            ]
+        };
     }
 
-    // Nová funkce pro hledání nejlepšího příkazu
-    findBestCommand(transcript, confidence) {
-        let bestCommand = null;
-        let bestScore = 0;
-        let bestMethod = '';
-        
-        // 1. Exact match
-        for (const command of this.commands) {
-            if (command.regex.test(transcript)) {
-                const score = confidence * 1.0; // Plná váha pro exact match
-                if (score > bestScore) {
-                    bestCommand = command;
-                    bestScore = score;
-                    bestMethod = 'exact';
-                }
-            }
-        }
-        
-        // 2. Contains match (obsahuje klíčové slovo)
-        if (!bestCommand || bestScore < 0.8) {
-            for (const command of this.commands) {
-                if (transcript.includes(command.pattern.toLowerCase())) {
-                    const score = confidence * 0.8;
-                    if (score > bestScore) {
-                        bestCommand = command;
-                        bestScore = score;
-                        bestMethod = 'contains';
-                    }
-                }
-            }
-        }
-        
-        // 3. Fuzzy match (editační vzdálenost)
-        if (!bestCommand || bestScore < 0.6) {
-            for (const command of this.commands) {
-                const similarity = this.calculateSimilarity(transcript, command.pattern.toLowerCase());
-                const score = confidence * similarity * 0.6;
-                if (score > bestScore && similarity > 0.5) {
-                    bestCommand = command;
-                    bestScore = score;
-                    bestMethod = 'fuzzy';
-                }
-            }
-        }
-        
-        // 4. Obsahuje částečnou shodu (pro složené příkazy)
-        if (!bestCommand || bestScore < 0.4) {
-            const words = transcript.split(' ');
-            for (const command of this.commands) {
-                const commandWords = command.pattern.toLowerCase().split(' ');
-                let matchingWords = 0;
-                
-                for (const word of words) {
-                    for (const cmdWord of commandWords) {
-                        if (word.includes(cmdWord) || cmdWord.includes(word)) {
-                            matchingWords++;
-                        }
-                    }
-                }
-                
-                if (matchingWords > 0) {
-                    const wordScore = matchingWords / Math.max(words.length, commandWords.length);
-                    const score = confidence * wordScore * 0.4;
-                    if (score > bestScore) {
-                        bestCommand = command;
-                        bestScore = score;
-                        bestMethod = 'partial';
-                    }
-                }
-            }
-        }
-        
-        if (DEBUG_VOICE && bestCommand) {
-            console.log(`🎤 Best match: "${bestCommand.pattern}" via ${bestMethod} (score: ${bestScore.toFixed(2)})`);
-        }
-        
-        return bestCommand ? { command: bestCommand, score: bestScore, method: bestMethod } : null;
+    initializeResponses() {
+        return {
+            play: ["Zahajuji přehrávání", "Engaged", "Přehrávání spuštěno", "Aye, captain"],
+            pause: ["Přehrávání pozastaveno", "Paused", "Zastaveno", "Acknowledged"],
+            next: ["Další skladba", "Advancing to next track", "Pokračuji", "Next track loaded"],
+            previous: ["Předchozí skladba", "Previous track", "Vracím se", "Going back"],
+            volumeUp: ["Zvyšuji hlasitost", "Volume increased", "Hlasitěji", "Audio enhanced"],
+            volumeDown: ["Snižuji hlasitost", "Volume decreased", "Tišeji", "Audio reduced"],
+            mute: ["Zvuk ztlumen", "Audio muted", "Ticho", "Sound off"],
+            unmute: ["Zvuk obnoven", "Audio restored", "Zvuk zapnut", "Sound on"],
+            shuffle: ["Náhodné přehrávání", "Shuffle enabled", "Míchám playlist", "Random mode"],
+            repeat: ["Opakování zapnuto", "Repeat enabled", "Smyčka aktivní", "Loop engaged"],
+            restart: ["Začínám znovu", "Restarting track", "Od začátku", "Track reset"],
+            bookmark: ["Pozice uložena", "Bookmark saved", "Záložka vytvořena", "Position marked"],
+            fullscreen: ["Celá obrazovka", "Fullscreen mode", "Maximalizováno", "Full display"],
+            engage: ["Engaged, captain!", "Make it so!", "Warp speed ahead!", "Systems online!"],
+            red_alert: ["Red alert! All hands to battle stations!", "Poplach! Všichni na pozice!"],
+            error: ["Příkaz nerozpoznán", "Command not understood", "Neznámý příkaz", "Unable to comply"],
+            listening: ["Poslouchám", "Ready for commands", "Computer online", "Standing by"],
+            offline: ["Voice control deaktivován", "Computer offline", "Hlasové ovládání vypnuto"]
+        };
     }
 
-    // Výpočet similarity mezi dvěma strings (Levenshtein distance)
-    calculateSimilarity(str1, str2) {
-        const len1 = str1.length;
-        const len2 = str2.length;
-        const matrix = Array(len2 + 1).fill().map(() => Array(len1 + 1).fill(0));
-        
-        for (let i = 0; i <= len1; i++) matrix[0][i] = i;
-        for (let j = 0; j <= len2; j++) matrix[j][0] = j;
-        
-        for (let j = 1; j <= len2; j++) {
-            for (let i = 1; i <= len1; i++) {
-                const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
-                matrix[j][i] = Math.min(
-                    matrix[j][i - 1] + 1,
-                    matrix[j - 1][i] + 1,
-                    matrix[j - 1][i - 1] + cost
-                );
-            }
-        }
-        
-        const maxLen = Math.max(len1, len2);
-        return maxLen === 0 ? 1 : 1 - (matrix[len2][len1] / maxLen);
-    }
-
-    // Inteligentní restart s debouncing
-    scheduleRestart(delay = 1500) {
-        if (this.restartTimer) {
-            clearTimeout(this.restartTimer);
-        }
-        
-        const now = Date.now();
-        const timeSinceLastRestart = now - this.lastRestartTime;
-        
-        if (timeSinceLastRestart < this.minRestartInterval) {
-            delay = this.minRestartInterval - timeSinceLastRestart + delay;
-        }
-        
-        this.restartTimer = setTimeout(() => {
-            if (this.isEnabled && !this.isListening && !this.isSpeaking) {
-                this.lastRestartTime = Date.now();
-                this.isRestarting = true;
-                this.startListening();
-            }
-        }, delay);
-        
-        if (DEBUG_VOICE) console.log(`🎤 Restart scheduled in ${delay}ms`);
-    }
-
-    // Vylepšené UI s debug panelem
-    createEnhancedUI() {
-        // Hlavní tlačítko
+    createUI() {
+        // Toggle button do control panelu
         this.toggleBtn = document.createElement('button');
-        this.toggleBtn.id = 'voice-control-toggle';
-        this.toggleBtn.className = 'control-button voice-control-toggle enhanced';
-        this.toggleBtn.title = 'Hlasové ovládání v2.0 (Ctrl+V)';
+        this.toggleBtn.id = 'voice-toggle';
+        this.toggleBtn.className = 'control-button voice-toggle';
+        this.toggleBtn.title = 'Hlasové ovládání (Ctrl+V)';
         this.toggleBtn.innerHTML = '🎤';
         
+        // Status indicator
         this.statusIndicator = document.createElement('div');
-        this.statusIndicator.className = 'voice-status-indicator enhanced';
+        this.statusIndicator.className = 'voice-status-indicator';
         this.toggleBtn.appendChild(this.statusIndicator);
         
-        // Debug tlačítko
-        this.helpBtn = document.createElement('button');
-        this.helpBtn.id = 'voice-debug-panel';
-        this.helpBtn.className = 'control-button voice-debug-button';
-        this.helpBtn.title = 'Debug panel (D)';
-        this.helpBtn.innerHTML = '🔧';
-        
+        // Přidání do control panelu
         const controlsDiv = document.querySelector('#control-panel .controls');
         if (controlsDiv) {
             controlsDiv.appendChild(this.toggleBtn);
-            controlsDiv.appendChild(this.helpBtn);
         }
 
-        this.createDebugPanel();
+        // Command display panel
+        this.commandDisplay = document.createElement('div');
+        this.commandDisplay.id = 'voice-command-display';
+        this.commandDisplay.className = 'voice-command-display hidden';
+        this.commandDisplay.innerHTML = `
+            <div class="voice-display-header">
+                <span class="voice-status-text">🎤 Voice Control</span>
+                <button class="voice-settings-btn" title="Nastavení hlasového ovládání">⚙️</button>
+            </div>
+            <div class="voice-command-text">
+                <span class="listening-indicator">● LISTENING</span>
+                <span class="last-command"></span>
+            </div>
+            <div class="voice-commands-help">
+                <div class="commands-section">
+                    <strong>Základní příkazy:</strong><br>
+                    "Computer, play" • "Computer, pause" • "Computer, next" • "Computer, previous"
+                </div>
+                <div class="commands-section">
+                    <strong>Hlasitost:</strong><br>
+                    "Computer, volume up" • "Computer, volume down" • "Computer, mute"
+                </div>
+                <div class="commands-section">
+                    <strong>Speciální:</strong><br>
+                    "Computer, engage" • "Computer, shuffle" • "Computer, bookmark"
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(this.commandDisplay);
+
+        // Settings panel
         this.createSettingsPanel();
-        
-        if (DEBUG_VOICE) console.log("🎤 Enhanced UI created");
+
+        // Cache DOM elements
+        this.lastCommandSpan = this.commandDisplay.querySelector('.last-command');
+        this.listeningIndicator = this.commandDisplay.querySelector('.listening-indicator');
+        this.settingsBtn = this.commandDisplay.querySelector('.voice-settings-btn');
     }
 
-    // Debug panel pro real-time monitoring
-    createDebugPanel() {
-        this.debugPanel = document.createElement('div');
-        this.debugPanel.id = 'voice-debug-panel';
-        this.debugPanel.className = 'voice-debug-panel hidden';
-        
-        this.debugPanel.innerHTML = `
-            <div class="debug-header">
-                <h3>🔧 Hlasové ovládání - Debug</h3>
-                <div class="debug-controls">
-                    <button id="clear-debug">🗑️ Vyčistit</button>
-                    <button id="export-debug">📁 Export</button>
-                    <button class="close-debug">✕</button>
-                </div>
+    createSettingsPanel() {
+        this.settingsPanel = document.createElement('div');
+        this.settingsPanel.className = 'voice-settings-panel hidden';
+        this.settingsPanel.innerHTML = `
+            <div class="settings-header">
+                <h3>🎤 Voice Control Settings</h3>
+                <button class="settings-close">×</button>
             </div>
-            
-            <div class="debug-content">
-                <div class="debug-section">
-                    <h4>📊 Real-time Status</h4>
-                    <div class="status-grid">
-                        <div>Stav: <span id="debug-status">Neaktivní</span></div>
-                        <div>Jazyk: <span id="debug-language">${this.currentLanguage}</span></div>
-                        <div>Confidence práh: <span id="debug-confidence">${this.confidence}</span></div>
-                        <div>Pokusy o restart: <span id="debug-attempts">0</span></div>
-                    </div>
+            <div class="settings-content">
+                <div class="setting-group">
+                    <label>Jazyk rozpoznávání:</label>
+                    <select id="voice-language">
+                        <option value="cs-CZ">Čeština (Česká republika)</option>
+                        <option value="en-US">English (United States)</option>
+                        <option value="sk-SK">Slovenčina</option>
+                    </select>
                 </div>
-                
-                <div class="debug-section">
-                    <h4>🎤 Rozpoznávání (Real-time)</h4>
-                    <div id="debug-log" class="debug-log"></div>
+                <div class="setting-group">
+                    <label>Práh spolehlivosti: <span id="confidence-value">70%</span></label>
+                    <input type="range" id="confidence-slider" min="50" max="95" value="70" step="5">
                 </div>
-                
-                <div class="debug-section">
-                    <h4>❌ Neúspěšné pokusy</h4>
-                    <div id="debug-failures" class="debug-failures"></div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="auto-restart"> 
+                        Automatické restartování poslechu
+                    </label>
                 </div>
-                
-                <div class="debug-section">
-                    <h4>⚙️ Rychlé akce</h4>
-                    <div class="debug-actions">
-                        <button id="test-voice">🧪 Test rozpoznávání</button>
-                        <button id="test-speech">🔊 Test hlasu</button>
-                        <button id="reset-voice">🔄 Reset systému</button>
-                    </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="voice-feedback"> 
+                        Hlasová odpověď na příkazy
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <button id="test-voice" class="voice-btn">🔊 Test hlasové odpovědi</button>
+                    <button id="clear-history" class="voice-btn">🗑️ Vymazat historii</button>
                 </div>
             </div>
         `;
-        
-        document.body.appendChild(this.debugPanel);
+        document.body.appendChild(this.settingsPanel);
     }
 
-    // Přidání do debug logu
-    addToDebugLog(type, message, confidence = 0) {
-        const debugLog = document.getElementById('debug-log');
-        if (!debugLog) return;
-        
-        const timestamp = new Date().toLocaleTimeString();
-        const entry = document.createElement('div');
-        entry.className = `debug-entry debug-${type}`;
-        
-        let icon = '';
-        switch (type) {
-            case 'input': icon = '🎤'; break;
-            case 'match': icon = '✅'; break;
-            case 'fail': icon = '❌'; break;
-            default: icon = 'ℹ️';
-        }
-        
-        entry.innerHTML = `
-            <span class="debug-time">${timestamp}</span>
-            <span class="debug-icon">${icon}</span>
-            <span class="debug-message">${message}</span>
-            ${confidence > 0 ? `<span class="debug-confidence">${Math.round(confidence * 100)}%</span>` : ''}
-        `;
-        
-        debugLog.insertBefore(entry, debugLog.firstChild);
-        
-        // Omez na 50 záznamů
-        while (debugLog.children.length > 50) {
-            debugLog.removeChild(debugLog.lastChild);
-        }
-        
-        this.updateDebugStats();
-    }
-
-    // Aktualizace debug statistik
-    updateDebugStats() {
-        const statusEl = document.getElementById('debug-status');
-        const attemptsEl = document.getElementById('debug-attempts');
-        const languageEl = document.getElementById('debug-language');
-        const confidenceEl = document.getElementById('debug-confidence');
-        
-        if (statusEl) {
-            let status = 'Neaktivní';
-            if (this.isListening) status = 'Naslouchá';
-            else if (this.isEnabled) status = 'Připraveno';
-            statusEl.textContent = status;
-            statusEl.className = this.isListening ? 'status-active' : 'status-inactive';
-        }
-        
-        if (attemptsEl) attemptsEl.textContent = this.recognitionAttempts;
-        if (languageEl) languageEl.textContent = this.currentLanguage;
-        if (confidenceEl) confidenceEl.textContent = this.confidence;
-        
-        // Aktualizuj failures
-        const failuresEl = document.getElementById('debug-failures');
-        if (failuresEl && this.recentFailures.length > 0) {
-            failuresEl.innerHTML = this.recentFailures.slice(0, 10).map(failure => 
-                `<div class="failure-item">
-                    <span>"${failure.transcript}"</span>
-                    <small>${new Date(failure.timestamp).toLocaleTimeString()} (${Math.round(failure.confidence * 100)}%)</small>
-                </div>`
-            ).join('');
-        }
-    }
-
-    // Monitoring kvality rozpoznávání
-    startQualityMonitoring() {
-        setInterval(() => {
-            if (this.isEnabled) {
-                this.updateDebugStats();
-                
-                // Statistiky úspěšnosti
-                const recentCommands = this.commandHistory.filter(cmd => 
-                    Date.now() - cmd.timestamp < 60000 // Posledních 60 sekund
-                );
-                
-                const recentFailuresCount = this.recentFailures.filter(fail => 
-                    Date.now() - fail.timestamp < 60000
-                ).length;
-                
-                if (DEBUG_VOICE && (recentCommands.length > 0 || recentFailuresCount > 0)) {
-                    const successRate = recentCommands.length / (recentCommands.length + recentFailuresCount);
-                    console.log(`🎤 Success rate (60s): ${Math.round(successRate * 100)}% (${recentCommands.length}/${recentCommands.length + recentFailuresCount})`);
-                }
-            }
-        }, 5000);
-    }
-
-    // Vylepšené styly
-    injectEnhancedStyles() {
+    injectStyles() {
         const style = document.createElement('style');
         style.textContent = `
-            /* Enhanced Voice Control Styles */
-            .voice-control-toggle.enhanced {
+            .control-button.voice-toggle {
                 position: relative;
-                transition: all 0.3s ease;
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                border: 2px solid #ffc107;
-                border-radius: 8px;
-                color: #ffc107;
+                overflow: visible;
             }
-            
-            .voice-control-toggle.enhanced.active {
-                background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
-                color: #000;
-                box-shadow: 0 0 20px rgba(255, 193, 7, 0.8);
-                transform: scale(1.1);
-                animation: voiceGlow 2s ease-in-out infinite;
+
+            .control-button.voice-toggle.active {
+                background: rgba(0, 212, 255, 0.2);
+                color: #00d4ff;
+                box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
             }
-            
-            @keyframes voiceGlow {
-                0%, 100% { box-shadow: 0 0 20px rgba(255, 193, 7, 0.8); }
-                50% { box-shadow: 0 0 30px rgba(255, 193, 7, 1); }
+
+            .control-button.voice-toggle.listening {
+                animation: voicePulse 1.5s ease-in-out infinite;
             }
-            
-            .voice-debug-button {
-                background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-                border: 2px solid #007bff;
-                border-radius: 8px;
-                color: #fff;
-                transition: all 0.3s ease;
+
+            @keyframes voicePulse {
+                0%, 100% { 
+                    box-shadow: 0 0 15px rgba(255, 0, 0, 0.5); 
+                    color: #ff4444; 
+                }
+                50% { 
+                    box-shadow: 0 0 25px rgba(255, 0, 0, 0.8); 
+                    color: #ff6666; 
+                }
             }
-            
-            .voice-debug-button:hover {
-                background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-                box-shadow: 0 0 15px rgba(0, 123, 255, 0.6);
-                transform: translateY(-2px);
-            }
-            
-            .voice-status-indicator.enhanced {
+
+            .voice-status-indicator {
                 position: absolute;
-                top: 4px;
-                right: 4px;
-                width: 10px;
-                height: 10px;
+                top: -2px;
+                right: -2px;
+                width: 8px;
+                height: 8px;
                 border-radius: 50%;
                 background: #666;
                 transition: all 0.3s ease;
-                border: 2px solid transparent;
             }
-            
-            .voice-status-indicator.enhanced.listening {
-                background: #28a745;
-                border-color: #fff;
-                animation: voicePulseEnhanced 1s ease-in-out infinite;
+
+            .voice-status-indicator.online {
+                background: #00ff00;
+                box-shadow: 0 0 6px rgba(0, 255, 0, 0.6);
             }
-            
-            .voice-status-indicator.enhanced.processing {
-                background: #ffc107;
-                border-color: #fff;
-                animation: voiceProcessingEnhanced 0.3s ease-in-out infinite alternate;
+
+            .voice-status-indicator.listening {
+                background: #ff4444;
+                box-shadow: 0 0 6px rgba(255, 68, 68, 0.6);
+                animation: indicatorPulse 1s ease-in-out infinite;
             }
-            
-            .voice-status-indicator.enhanced.error {
-                background: #dc3545;
-                border-color: #fff;
-                animation: voiceErrorEnhanced 0.2s ease-in-out 4;
+
+            @keyframes indicatorPulse {
+                0%, 100% { transform: scale(1); opacity: 1; }
+                50% { transform: scale(1.3); opacity: 0.7; }
             }
-            
-            @keyframes voicePulseEnhanced {
-                0%, 100% { 
-                    opacity: 0.7; 
-                    transform: scale(1); 
-                    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
-                }
-                50% { 
-                    opacity: 1; 
-                    transform: scale(1.3); 
-                    box-shadow: 0 0 0 8px rgba(40, 167, 69, 0);
-                }
-            }
-            
-            @keyframes voiceProcessingEnhanced {
-                0% { opacity: 0.7; transform: scale(1); }
-                100% { opacity: 1; transform: scale(1.2); }
-            }
-            
-            @keyframes voiceErrorEnhanced {
-                0%, 100% { transform: scale(1) rotate(0deg); }
-                25% { transform: scale(1.3) rotate(-5deg); }
-                75% { transform: scale(1.3) rotate(5deg); }
-            }
-            
-            /* Debug Panel Styles */
-            .voice-debug-panel {
+
+            .voice-command-display {
                 position: fixed;
-                top: 50px;
+                top: 20px;
                 right: 20px;
-                width: 450px;
-                max-width: calc(100vw - 40px);
-                max-height: calc(100vh - 100px);
+                width: 350px;
                 background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                border: 2px solid #007bff;
+                border: 2px solid #00d4ff;
                 border-radius: 12px;
-                box-shadow: 0 10px 30px rgba(0, 123, 255, 0.3);
-                backdrop-filter: blur(10px);
-                z-index: 1002;
-                overflow: hidden;
-                font-family: 'Courier New', monospace;
-                font-size: 12px;
-            }
-            
-            .voice-debug-panel.hidden {
-                display: none;
-            }
-            
-            .debug-header {
-                background: linear-gradient(90deg, #007bff 0%, #0056b3 100%);
-                padding: 10px 15px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                color: #fff;
-            }
-            
-            .debug-header h3 {
-                margin: 0;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            
-            .debug-controls {
-                display: flex;
-                gap: 8px;
-            }
-            
-            .debug-controls button {
-                background: rgba(255, 255, 255, 0.2);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                color: #fff;
-                padding: 4px 8px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 11px;
-                transition: all 0.2s ease;
-            }
-            
-            .debug-controls button:hover {
-                background: rgba(255, 255, 255, 0.3);
-            }
-            
-            .debug-content {
-                padding: 15px;
-                max-height: calc(100vh - 200px);
-                overflow-y: auto;
-            }
-            
-            .debug-section {
-                margin-bottom: 15px;
-                padding: 10px;
-                background: rgba(0, 0, 0, 0.2);
-                border-radius: 6px;
-                border-left: 3px solid #007bff;
-            }
-            
-            .debug-section h4 {
-                margin: 0 0 8px 0;
-                color: #007bff;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            
-            .status-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 8px;
-                color: #ccc;
-                font-size: 11px;
-            }
-            
-            .status-active {
-                color: #28a745 !important;
-                font-weight: bold;
-            }
-            
-            .status-inactive {
-                color: #6c757d !important;
-            }
-            
-            .debug-log {
-                max-height: 200px;
-                overflow-y: auto;
-                background: rgba(0, 0, 0, 0.3);
-                border-radius: 4px;
-                padding: 8px;
-            }
-            
-            .debug-entry {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                padding: 4px 0;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                font-size: 11px;
-            }
-            
-            .debug-entry:last-child {
-                border-bottom: none;
-            }
-            
-            .debug-time {
-                color: #6c757d;
-                min-width: 60px;
-                font-size: 10px;
-            }
-            
-            .debug-icon {
-                min-width: 16px;
-                text-align: center;
-            }
-            
-            .debug-message {
-                flex: 1;
-                color: #fff;
-            }
-            
-            .debug-confidence {
-                color: #ffc107;
-                font-weight: bold;
-                min-width: 40px;
-                text-align: right;
-                font-size: 10px;
-            }
-            
-            .debug-input {
-                background: rgba(0, 123, 255, 0.1);
-                border-left: 3px solid #007bff;
-                padding-left: 8px;
-            }
-            
-            .debug-match {
-                background: rgba(40, 167, 69, 0.1);
-                border-left: 3px solid #28a745;
-                padding-left: 8px;
-            }
-            
-            .debug-fail {
-                background: rgba(220, 53, 69, 0.1);
-                border-left: 3px solid #dc3545;
-                padding-left: 8px;
-            }
-            
-            .debug-failures {
-                max-height: 150px;
-                overflow-y: auto;
-                background: rgba(220, 53, 69, 0.1);
-                border-radius: 4px;
-                padding: 8px;
-            }
-            
-            .failure-item {
-                padding: 4px 0;
-                border-bottom: 1px solid rgba(220, 53, 69, 0.2);
-                color: #ffcccc;
-                font-size: 11px;
-            }
-            
-            .failure-item:last-child {
-                border-bottom: none;
-            }
-            
-            .failure-item small {
-                color: #dc3545;
-                display: block;
-                margin-top: 2px;
-                font-size: 10px;
-            }
-            
-            .debug-actions {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-            
-            .debug-actions button {
-                background: rgba(0, 123, 255, 0.2);
-                border: 1px solid rgba(0, 123, 255, 0.4);
-                color: #007bff;
-                padding: 6px 12px;
-                border-radius: 6px;
-                cursor: pointer;
-                font-size: 11px;
-                transition: all 0.2s ease;
-            }
-            
-            .debug-actions button:hover {
-                background: rgba(0, 123, 255, 0.3);
-                color: #fff;
-            }
-            
-            /* Enhanced Settings Panel */
-            .voice-settings-panel {
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                width: 500px;
-                max-width: 90vw;
-                max-height: 80vh;
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                border: 2px solid #ffc107;
-                border-radius: 12px;
-                box-shadow: 0 10px 30px rgba(255, 193, 7, 0.3);
+                box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
                 backdrop-filter: blur(10px);
                 z-index: 1001;
-                overflow: hidden;
                 font-family: 'Orbitron', monospace;
+                color: #00d4ff;
             }
-            
-            .voice-settings-panel.hidden {
+
+            .voice-command-display.hidden {
                 display: none;
             }
-            
-            .voice-settings-header {
-                background: linear-gradient(90deg, #ffc107 0%, #ff9800 100%);
+
+            .voice-display-header {
+                background: linear-gradient(90deg, #00d4ff 0%, #0066cc 100%);
                 padding: 12px 16px;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 color: #000;
-            }
-            
-            .voice-settings-header h3 {
-                margin: 0;
-                font-size: 16px;
                 font-weight: bold;
             }
-            
-            .close-settings {
-                background: none;
+
+            .voice-settings-btn {
+                background: rgba(0, 0, 0, 0.2);
                 border: none;
-                color: #000;
-                font-size: 18px;
-                cursor: pointer;
+                color: #fff;
                 padding: 4px 8px;
                 border-radius: 4px;
-                transition: background 0.2s ease;
+                cursor: pointer;
+                transition: all 0.2s ease;
             }
-            
-            .close-settings:hover {
-                background: rgba(0, 0, 0, 0.1);
+
+            .voice-settings-btn:hover {
+                background: rgba(255, 255, 255, 0.1);
             }
-            
-            /* Responsive Design */
+
+            .voice-command-text {
+                padding: 16px;
+                text-align: center;
+            }
+
+            .listening-indicator {
+                display: block;
+                font-size: 14px;
+                font-weight: bold;
+                margin-bottom: 8px;
+                opacity: 0.7;
+            }
+
+            .listening-indicator.active {
+                color: #ff4444;
+                animation: textPulse 1s ease-in-out infinite;
+            }
+
+            @keyframes textPulse {
+                0%, 100% { opacity: 0.7; }
+                50% { opacity: 1; }
+            }
+
+            .last-command {
+                display: block;
+                font-size: 16px;
+                font-weight: bold;
+                min-height: 20px;
+                color: #fff;
+                background: rgba(0, 212, 255, 0.1);
+                padding: 8px;
+                border-radius: 6px;
+                border: 1px solid rgba(0, 212, 255, 0.3);
+            }
+
+            .voice-commands-help {
+                background: rgba(0, 0, 0, 0.2);
+                padding: 12px;
+                font-size: 11px;
+                line-height: 1.4;
+            }
+
+            .commands-section {
+                margin-bottom: 8px;
+            }
+
+            .commands-section:last-child {
+                margin-bottom: 0;
+            }
+
+            .voice-settings-panel {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 400px;
+                max-width: 90vw;
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                border: 2px solid #00d4ff;
+                border-radius: 12px;
+                box-shadow: 0 15px 40px rgba(0, 212, 255, 0.4);
+                z-index: 1002;
+                font-family: 'Orbitron', monospace;
+            }
+
+            .voice-settings-panel.hidden {
+                display: none;
+            }
+
+            .settings-header {
+                background: linear-gradient(90deg, #00d4ff 0%, #0066cc 100%);
+                padding: 16px 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                color: #000;
+            }
+
+            .settings-header h3 {
+                margin: 0;
+                font-size: 18px;
+            }
+
+            .settings-close {
+                background: rgba(0, 0, 0, 0.3);
+                border: none;
+                color: #fff;
+                font-size: 20px;
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .settings-close:hover {
+                background: rgba(255, 0, 0, 0.3);
+            }
+
+            .settings-content {
+                padding: 20px;
+                color: #00d4ff;
+            }
+
+            .setting-group {
+                margin-bottom: 20px;
+            }
+
+            .setting-group:last-child {
+                margin-bottom: 0;
+            }
+
+            .setting-group label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+
+            .setting-group select,
+            .setting-group input[type="range"] {
+                width: 100%;
+                background: rgba(0, 212, 255, 0.1);
+                border: 1px solid rgba(0, 212, 255, 0.3);
+                border-radius: 6px;
+                padding: 8px;
+                color: #00d4ff;
+                font-family: inherit;
+            }
+
+            .setting-group select:focus,
+            .setting-group input[type="range"]:focus {
+                outline: none;
+                border-color: #00d4ff;
+                box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+            }
+
+            .setting-group input[type="checkbox"] {
+                margin-right: 8px;
+                transform: scale(1.2);
+            }
+
+            .voice-btn {
+                background: rgba(0, 212, 255, 0.1);
+                border: 1px solid rgba(0, 212, 255, 0.3);
+                color: #00d4ff;
+                padding: 10px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-family: inherit;
+                font-size: 12px;
+                margin-right: 10px;
+                transition: all 0.2s ease;
+            }
+
+            .voice-btn:hover {
+                background: rgba(0, 212, 255, 0.2);
+                border-color: #00d4ff;
+            }
+
+            /* Mobile responsivita */
             @media (max-width: 768px) {
-                .voice-debug-panel {
+                .voice-command-display {
                     top: 10px;
                     right: 10px;
                     left: 10px;
                     width: auto;
-                    max-height: calc(100vh - 40px);
                 }
                 
-                .debug-content {
-                    padding: 10px;
+                .voice-settings-panel {
+                    width: 95vw;
                 }
                 
-                .status-grid {
-                    grid-template-columns: 1fr;
+                .settings-content {
+                    padding: 16px;
                 }
                 
-                .debug-actions {
-                    justify-content: center;
+                .voice-commands-help {
+                    font-size: 10px;
                 }
-                
-                .voice-control-toggle.enhanced,
-                .voice-debug-button {
-                    padding: 10px;
-                    font-size: 16px;
-                }
-            }
-            
-            /* Notification Enhancement */
-            .notification.voice-info {
-                border-left: 4px solid #007bff;
-                background: linear-gradient(135deg, rgba(0, 123, 255, 0.1) 0%, rgba(0, 86, 179, 0.1) 100%);
-            }
-            
-            .notification.voice-success {
-                border-left: 4px solid #28a745;
-                background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(32, 134, 55, 0.1) 100%);
-            }
-            
-            .notification.voice-warning {
-                border-left: 4px solid #ffc107;
-                background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.1) 100%);
-            }
-            
-            .notification.voice-error {
-                border-left: 4px solid #dc3545;
-                background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(181, 44, 57, 0.1) 100%);
             }
         `;
-        
         document.head.appendChild(style);
     }
 
-    // Vylepšené event listenery
     attachEventListeners() {
+        // Toggle button
         this.toggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (this.isMobile && !this.isEnabled) {
-                this.showNotification("🎤 Klikněte znovu pro aktivaci mikrofonu", 'info');
-            }
             this.toggle();
         });
 
-        this.helpBtn.addEventListener('click', (e) => {
+        // Settings button
+        this.settingsBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.showDebugPanel();
+            this.showSettings();
         });
 
-        // Debug panel controls
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('close-debug')) {
-                this.hideDebugPanel();
-            }
-            
-            if (e.target.id === 'clear-debug') {
-                this.clearDebugLog();
-            }
-            
-            if (e.target.id === 'export-debug') {
-                this.exportDebugData();
-            }
-            
-            if (e.target.id === 'test-voice') {
-                this.testVoiceRecognition();
-            }
-            
-            if (e.target.id === 'test-speech') {
-                this.testSpeech();
-            }
-            
-            if (e.target.id === 'reset-voice') {
-                this.resetVoiceSystem();
-            }
+        // Settings panel events
+        const settingsClose = this.settingsPanel?.querySelector('.settings-close');
+        settingsClose?.addEventListener('click', () => this.hideSettings());
+
+        // Language change
+        const langSelect = this.settingsPanel?.querySelector('#voice-language');
+        langSelect?.addEventListener('change', (e) => {
+            this.changeLanguage(e.target.value);
+        });
+
+        // Confidence threshold
+        const confidenceSlider = this.settingsPanel?.querySelector('#confidence-slider');
+        const confidenceValue = this.settingsPanel?.querySelector('#confidence-value');
+        confidenceSlider?.addEventListener('input', (e) => {
+            this.confidenceThreshold = e.target.value / 100;
+            confidenceValue.textContent = e.target.value + '%';
+            this.saveSettings();
+        });
+
+        // Test voice button
+        const testBtn = this.settingsPanel?.querySelector('#test-voice');
+        testBtn?.addEventListener('click', () => {
+            this.speak("Voice control test successful, captain!");
+        });
+
+        // Clear history
+        const clearBtn = this.settingsPanel?.querySelector('#clear-history');
+        clearBtn?.addEventListener('click', () => {
+            this.clearCommandHistory();
         });
 
         // Klávesové zkratky
@@ -1170,265 +642,200 @@ class EnhancedVoiceController {
                 e.preventDefault();
                 this.toggle();
             }
-
-            if (e.key === 'd' && e.ctrlKey) {
-                e.preventDefault();
-                this.showDebugPanel();
-            }
-
-            if (e.key === 'Escape') {
-                if (!this.debugPanel.classList.contains('hidden')) {
-                    this.hideDebugPanel();
-                }
-                if (!this.settingsPanel.classList.contains('hidden')) {
-                    this.hideSettings();
-                }
-            }
         });
 
-        if (DEBUG_VOICE) console.log("🎤 Enhanced event listeners attached");
-    }
-
-    // Debug panel funkce
-    showDebugPanel() {
-        this.debugPanel.classList.remove('hidden');
-        this.updateDebugStats();
-    }
-
-    hideDebugPanel() {
-        this.debugPanel.classList.add('hidden');
-    }
-
-    clearDebugLog() {
-        const debugLog = document.getElementById('debug-log');
-        if (debugLog) debugLog.innerHTML = '';
-        
-        const debugFailures = document.getElementById('debug-failures');
-        if (debugFailures) debugFailures.innerHTML = '';
-        
-        this.recentFailures = [];
-        this.showNotification('🗑️ Debug log vyčištěn', 'info');
-    }
-
-    exportDebugData() {
-        const data = {
-            settings: {
-                isEnabled: this.isEnabled,
-                confidence: this.confidence,
-                language: this.currentLanguage,
-                voiceResponses: this.voiceResponses
-            },
-            statistics: {
-                recognitionAttempts: this.recognitionAttempts,
-                commandHistoryCount: this.commandHistory.length,
-                recentFailuresCount: this.recentFailures.length
-            },
-            commandHistory: this.commandHistory.slice(0, 20),
-            recentFailures: this.recentFailures.slice(0, 10),
-            timestamp: new Date().toISOString(),
-            userAgent: navigator.userAgent,
-            version: '2.0'
-        };
-        
-        const blob = new Blob([JSON.stringify(data, null, 2)], {
-            type: 'application/json'
-        });
-        
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `voice-debug-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        this.showNotification('📁 Debug data exportována', 'success');
-    }
-
-    testVoiceRecognition() {
-        this.addToDebugLog('info', 'Spouštím test rozpoznávání...', 0);
-        this.speak("Test rozpoznávání začíná. Řekněte 'test úspěšný'.");
-        
-        const testRecognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        testRecognition.continuous = false;
-        testRecognition.interimResults = false;
-        testRecognition.lang = this.currentLanguage;
-        testRecognition.maxAlternatives = 3;
-        
-        testRecognition.onresult = (event) => {
-            const results = Array.from(event.results[0]).map(r => ({
-                transcript: r.transcript,
-                confidence: r.confidence
-            }));
-            
-            this.addToDebugLog('match', `Test výsledek: "${results[0].transcript}"`, results[0].confidence);
-            
-            if (results.length > 1) {
-                results.slice(1).forEach((result, i) => {
-                    this.addToDebugLog('info', `Alternativa ${i+2}: "${result.transcript}"`, result.confidence);
-                });
+        // Klik mimo pro zavření
+        document.addEventListener('click', (e) => {
+            if (this.commandDisplay && 
+                !this.commandDisplay.classList.contains('hidden') &&
+                !this.commandDisplay.contains(e.target) && 
+                e.target !== this.toggleBtn) {
+                this.hideDisplay();
             }
             
-            this.speak(`Test dokončen. Rozpoznáno: ${results[0].transcript}`);
-        };
-        
-        testRecognition.onerror = (event) => {
-            this.addToDebugLog('fail', `Test selhal: ${event.error}`, 0);
-            this.speak(`Test selhal: ${event.error}`);
-        };
-        
-        testRecognition.start();
+            if (this.settingsPanel && 
+                !this.settingsPanel.classList.contains('hidden') &&
+                !this.settingsPanel.contains(e.target)) {
+                this.hideSettings();
+            }
+        });
     }
 
-    testSpeech() {
-        const testPhrases = [
-            "Test hlasového výstupu funguje správně",
-            "Všechny systémy online, připraven k plnění rozkazů",
-            "Hlasové ovládání verze dva aktivováno"
-        ];
-        
-        const phrase = testPhrases[Math.floor(Math.random() * testPhrases.length)];
-        this.addToDebugLog('info', `Test hlasu: "${phrase}"`, 0);
-        this.speak(phrase);
+    handleSpeechResult(event) {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+                const transcript = event.results[i][0].transcript.trim().toLowerCase();
+                const confidence = event.results[i][0].confidence;
+                
+                if (DEBUG_VOICE) {
+                    console.log(`🎤 Speech: "${transcript}" (confidence: ${confidence})`);
+                }
+                
+                this.processCommand(transcript, confidence);
+            }
+        }
     }
 
-    resetVoiceSystem() {
-        this.addToDebugLog('info', 'Resetuji hlasový systém...', 0);
+    processCommand(transcript, confidence) {
+        // Kontrola confidence threshold
+        if (confidence < this.confidenceThreshold) {
+            if (DEBUG_VOICE) {
+                console.log(`🎤 Command ignored due to low confidence: ${confidence}`);
+            }
+            return;
+        }
+
+        this.lastCommand = transcript;
+        this.updateCommandDisplay();
         
-        // Zastavíme současné rozpoznávání
-        this.stopListening();
+        // Přidání do historie
+        this.addToHistory(transcript, confidence);
         
-        // Vyčistíme timery
-        if (this.restartTimer) {
-            clearTimeout(this.restartTimer);
-            this.restartTimer = null;
+        // Hledání matching patternu
+        let commandFound = false;
+        
+        for (const [commandType, patterns] of Object.entries(this.commandPatterns)) {
+            for (const pattern of patterns) {
+                if (pattern.test(transcript)) {
+                    this.executeCommand(commandType, transcript);
+                    commandFound = true;
+                    break;
+                }
+            }
+            if (commandFound) break;
         }
         
-        // Reset hodnot
-        this.recognitionAttempts = 0;
-        this.isRestarting = false;
-        this.lastRestartTime = 0;
-        
-        // Znovu nastavíme rozpoznávání
-        this.setupRobustRecognition();
-        
-        // Pokud bylo zapnuté, znovu zapneme
-        if (this.isEnabled) {
-            setTimeout(() => {
-                this.startListening();
-                this.addToDebugLog('info', 'Systém resetován a restartován', 0);
-            }, 1000);
-        } else {
-            this.addToDebugLog('info', 'Systém resetován (zůstává vypnutý)', 0);
+        if (!commandFound) {
+            this.handleUnknownCommand(transcript);
         }
-        
-        this.speak("Hlasový systém byl resetován");
-        this.showNotification('🔄 Hlasový systém resetován', 'success');
     }
 
-    // Vylepšené ovládání příkazů
-    executeCommand(command, transcript, confidence) {
-        if (DEBUG_VOICE) console.log("🎤 Executing enhanced command:", command.action, transcript);
-        
-        this.commandInProgress = true;
+    executeCommand(commandType, transcript) {
+        if (DEBUG_VOICE) {
+            console.log(`🎤 Executing command: ${commandType}`);
+        }
+
         const audioPlayer = document.getElementById('audioPlayer');
-        
-        switch (command.action) {
-            case 'play':
-                this.lastCommandWasPause = false;
-                document.getElementById('play-button')?.click();
-                this.speak("Spouštím přehrávání");
-                break;
-                
-            case 'pause':
-                this.lastCommandWasPause = true;
-                this.wasPlayingBeforeRecognition = false;
-                document.getElementById('pause-button')?.click();
-                this.speak("Pozastavuji");
-                break;
-                
-            case 'next':
-                this.lastCommandWasPause = false;
-                document.getElementById('next-button')?.click();
-                this.speak("Další skladba");
-                break;
-                
-            case 'previous':
-                this.lastCommandWasPause = false;
-                document.getElementById('prev-button')?.click();
-                this.speak("Předchozí skladba");
-                break;
-                
-            case 'restart':
-                this.lastCommandWasPause = false;
-                document.getElementById('reset-button')?.click();
-                this.speak("Spouštím od začátku");
-                break;
-                
-            case 'volumeUp':
-                this.adjustVolume(0.1);
-                this.speak("Zvyšuji hlasitost");
-                break;
-                
-            case 'volumeDown':
-                this.adjustVolume(-0.1);
-                this.speak("Snižuji hlasitost");
-                break;
-                
-            case 'mute':
-                document.getElementById('mute-button')?.click();
-                this.speak("Ztlumeno");
-                break;
-                
-            case 'unmute':
-                if (audioPlayer?.muted) {
+        let success = true;
+        let response = this.getRandomResponse(commandType);
+
+        try {
+            switch (commandType) {
+                case 'play':
+                    if (audioPlayer?.paused) {
+                        document.getElementById('play-button')?.click();
+                    }
+                    break;
+                    
+                case 'pause':
+                    if (audioPlayer && !audioPlayer.paused) {
+                        document.getElementById('pause-button')?.click();
+                    }
+                    break;
+                    
+                case 'next':
+                    document.getElementById('next-button')?.click();
+                    break;
+                    
+                case 'previous':
+                    document.getElementById('prev-button')?.click();
+                    break;
+                    
+                case 'volumeUp':
+                    this.adjustVolume(0.1);
+                    break;
+                    
+                case 'volumeDown':
+                    this.adjustVolume(-0.1);
+                    break;
+                    
+                case 'mute':
                     document.getElementById('mute-button')?.click();
-                    this.speak("Zvuk obnoven");
-                }
-                break;
-                
-            case 'acknowledge':
-                const responses = [
-                    "Systém online, admiral Jiříku",
-                    "Hlasové ovládání verze dva připraveno",
-                    "Všechny systémy funkční, čekám na rozkazy",
-                    "Audio systém aktivní a připraven"
-                ];
-                this.speak(responses[Math.floor(Math.random() * responses.length)]);
-                break;
-                
-            case 'getCurrentTrack':
-                const currentTrack = document.getElementById('trackTitle')?.textContent;
-                if (currentTrack) {
-                    this.speak(`Aktuálně hraje: ${currentTrack}`);
-                } else {
-                    this.speak("Žádná skladba není spuštěna");
-                }
-                break;
-                
-            case 'showHelp':
-                this.showCommandsHelp();
-                break;
-                
-            case 'disableVoice':
-                this.lastCommandWasPause = false;
-                this.speak("Deaktivuji hlasové ovládání");
-                setTimeout(() => this.disable(), 2000);
-                break;
-                
-            default:
-                this.speak("Příkaz rozpoznán, ale není implementován");
+                    break;
+                    
+                case 'unmute':
+                    if (audioPlayer?.muted) {
+                        document.getElementById('mute-button')?.click();
+                    }
+                    break;
+                    
+                case 'shuffle':
+                    document.getElementById('shuffle-button')?.click();
+                    break;
+                    
+                case 'repeat':
+                    document.getElementById('loop-button')?.click();
+                    break;
+                    
+                case 'restart':
+                    document.getElementById('reset-button')?.click();
+                    break;
+                    
+                case 'fullscreen':
+                    document.getElementById('fullscreen-toggle')?.click();
+                    break;
+                    
+                case 'minimize':
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    }
+                    break;
+                    
+                case 'status':
+                    this.reportStatus();
+                    return; // Status má vlastní response
+                    
+                case 'time':
+                    this.reportTime();
+                    return; // Time má vlastní response
+                    
+                case 'bookmark':
+                    if (window.bookmarkManager) {
+                        window.bookmarkManager.addCurrentBookmark();
+                    } else {
+                        response = "Bookmark manager není dostupný";
+                    }
+                    break;
+                    
+                case 'engage':
+                    // Speciální Star Trek příkaz - spustí přehrávání
+                    if (audioPlayer?.paused) {
+                        document.getElementById('play-button')?.click();
+                    }
+                    response = this.getRandomResponse('engage');
+                    break;
+                    
+                case 'red_alert':
+                    // Easter egg - maximální hlasitost a play
+                    if (audioPlayer) {
+                        audioPlayer.volume = 1.0;
+                        const volumeSlider = document.getElementById('volume-slider');
+                        if (volumeSlider) volumeSlider.value = 1.0;
+                        document.getElementById('play-button')?.click();
+                    }
+                    response = this.getRandomResponse('red_alert');
+                    break;
+                    
+                default:
+                    success = false;
+                    response = this.getRandomResponse('error');
+            }
+        } catch (error) {
+            console.error("Voice command execution error:", error);
+            success = false;
+            response = "Chyba při vykonávání příkazu";
         }
+
+        // Hlasová odpověď
+        this.speak(response);
         
-        setTimeout(() => {
-            this.commandInProgress = false;
-        }, 500);
-        
-        this.showCommandFeedback(command.action, transcript);
+        // Visual feedback
+        this.showNotification(
+            `🎤 "${transcript}" → ${response}`, 
+            success ? 'success' : 'error'
+        );
     }
 
-    // Zbytek funkcí zůstává stejný jako v původním kódu...
     adjustVolume(delta) {
         const audioPlayer = document.getElementById('audioPlayer');
         const volumeSlider = document.getElementById('volume-slider');
@@ -1442,139 +849,196 @@ class EnhancedVoiceController {
         volumeSlider.dispatchEvent(new Event('input'));
     }
 
-    showCommandFeedback(action, transcript) {
-        if (this.statusIndicator) {
-            this.statusIndicator.classList.add('command-executed');
-            setTimeout(() => {
-                this.statusIndicator?.classList.remove('command-executed');
-            }, 1000);
+    reportStatus() {
+        const audioPlayer = document.getElementById('audioPlayer');
+        const trackTitle = document.getElementById('trackTitle')?.textContent || 'Neznámý track';
+        
+        if (!audioPlayer) {
+            this.speak("Audio přehrávač není dostupný");
+            return;
         }
         
-        this.showNotification(`🎤 "${transcript}" → ${action}`, 'voice-success', 2000);
+        const status = audioPlayer.paused ? 'pozastaven' : 'přehrává';
+        const volume = Math.round(audioPlayer.volume * 100);
+        const currentTime = this.formatTime(audioPlayer.currentTime);
+        
+        const statusMessage = `Aktuálně ${status}: ${trackTitle}. Hlasitost ${volume} procent. Pozice ${currentTime}.`;
+        this.speak(statusMessage);
     }
 
-    showNotification(message, type = 'info', duration = 3000) {
-        // Přidáme voice- prefix pro lepší styling
-        const voiceType = type.startsWith('voice-') ? type : `voice-${type}`;
+    reportTime() {
+        const audioPlayer = document.getElementById('audioPlayer');
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('cs-CZ');
         
-        if (typeof window.showNotification === 'function') {
-            window.showNotification(message, voiceType, duration);
-        } else {
-            console.log(`[${type.toUpperCase()}] ${message}`);
+        let message = `Aktuální čas: ${timeString}`;
+        
+        if (audioPlayer && audioPlayer.duration) {
+            const remaining = audioPlayer.duration - audioPlayer.currentTime;
+            const remainingTime = this.formatTime(remaining);
+            message += `. Zbývá ${remainingTime} skladby.`;
+        }
+        
+        this.speak(message);
+    }
+
+    handleUnknownCommand(transcript) {
+        if (DEBUG_VOICE) {
+            console.log(`🎤 Unknown command: "${transcript}"`);
+        }
+        
+        const response = this.getRandomResponse('error');
+        this.speak(response);
+        
+        this.showNotification(
+            `🎤 Nerozpoznaný příkaz: "${transcript}"`, 
+            'warn'
+        );
+    }
+
+    handleError(error) {
+        let message = "Chyba hlasového rozpoznávání";
+        
+        switch (error) {
+            case 'no-speech':
+                message = "Žádný hlas nebyl detekován";
+                break;
+            case 'audio-capture':
+                message = "Chyba při záznamu zvuku";
+                break;
+            case 'not-allowed':
+                message = "Přístup k mikrofonu byl odepřen";
+                break;
+            case 'network':
+                message = "Chyba sítě při rozpoznávání";
+                break;
+            case 'service-not-allowed':
+                message = "Služba rozpoznávání není povolena";
+                break;
+        }
+        
+        this.showNotification(message, 'error');
+        
+        if (error === 'not-allowed') {
+            this.isEnabled = false;
+            this.updateUI();
         }
     }
 
-    showCommandsHelp() {
-        this.speak("Dostupné příkazy: přehrát, pauza, další, předchozí, hlasitost nahoru, hlasitost dolů, co hraje, help, vypni hlas");
-        this.showDebugPanel();
+    getRandomResponse(commandType) {
+        const responses = this.responses[commandType] || this.responses.error;
+        return responses[Math.floor(Math.random() * responses.length)];
     }
 
-    speak(text) {
-        if (!this.voiceResponses || !('speechSynthesis' in window)) return;
+    speak(text, options = {}) {
+        // Kontrola, zda je hlasová odpověď povolena
+        const voiceFeedback = this.settingsPanel?.querySelector('#voice-feedback')?.checked ?? true;
+        if (!voiceFeedback) return;
         
-        this.speechQueue.push(text);
-        this.processSpeechQueue();
+        if ('speechSynthesis' in window) {
+            // Zastavení současného mluvení
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = this.recognition?.lang || 'cs-CZ';
+            utterance.rate = options.rate || 1.0;
+            utterance.pitch = options.pitch || 1.0;
+            utterance.volume = options.volume || 0.8;
+            
+            // Najít vhodný hlas
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(voice => 
+                voice.lang.startsWith(utterance.lang.substring(0, 2))
+            );
+            if (preferredVoice) utterance.voice = preferredVoice;
+            
+            window.speechSynthesis.speak(utterance);
+        }
     }
 
-    processSpeechQueue() {
-        if (this.isSpeaking || this.speechQueue.length === 0) return;
-        
-        this.isSpeaking = true;
-        const text = this.speechQueue.shift();
-        
-        speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.voice = this.responseVoice;
-        utterance.volume = 0.8;
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        
-        utterance.onend = () => {
-            this.isSpeaking = false;
-            this.processSpeechQueue();
+    addToHistory(transcript, confidence) {
+        const historyItem = {
+            transcript,
+            confidence,
+            timestamp: Date.now()
         };
         
-        if (DEBUG_VOICE) console.log("🎤 Speaking:", text);
-        speechSynthesis.speak(utterance);
+        this.commandHistory.unshift(historyItem);
+        
+        // Omezení historie
+        if (this.commandHistory.length > this.maxHistoryLength) {
+            this.commandHistory = this.commandHistory.slice(0, this.maxHistoryLength);
+        }
+        
+        this.saveSettings();
     }
 
-    loadVoices() {
-        const voices = speechSynthesis.getVoices();
-        const preferredVoices = ['cs-CZ', 'sk-SK', 'en-US', 'en-GB'];
+    clearCommandHistory() {
+        this.commandHistory = [];
+        this.saveSettings();
+        this.showNotification("Historie příkazů vymazána", 'info');
+    }
+
+    formatTime(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
         
-        for (const lang of preferredVoices) {
-            const voice = voices.find(v => v.lang.startsWith(lang));
-            if (voice) {
-                this.responseVoice = voice;
-                break;
+        if (h > 0) {
+            return `${h} hodin ${m} minut`;
+        } else if (m > 0) {
+            return `${m} minut ${s} sekund`;
+        } else {
+            return `${s} sekund`;
+        }
+    }
+
+    updateCommandDisplay() {
+        if (this.lastCommandSpan) {
+            this.lastCommandSpan.textContent = this.lastCommand || 'Poslouchám...';
+        }
+    }
+
+    updateUI() {
+        // Toggle button states
+        this.toggleBtn?.classList.toggle('active', this.isEnabled);
+        this.toggleBtn?.classList.toggle('listening', this.isListening);
+        
+        // Status indicator
+        if (this.statusIndicator) {
+            this.statusIndicator.classList.remove('online', 'listening');
+            if (this.isEnabled) {
+                this.statusIndicator.classList.add('online');
+                if (this.isListening) {
+                    this.statusIndicator.classList.add('listening');
+                }
             }
         }
         
-        if (!this.responseVoice && voices.length > 0) {
-            this.responseVoice = voices[0];
+        // Listening indicator
+        if (this.listeningIndicator) {
+            this.listeningIndicator.classList.toggle('active', this.isListening);
+            this.listeningIndicator.textContent = this.isListening ? '● LISTENING' : '○ READY';
         }
         
-        if (DEBUG_VOICE) {
-            console.log("🎤 Voice loaded:", this.responseVoice?.name, this.responseVoice?.lang);
-        }
-    }
-
-    updateStatusIndicator(status = 'inactive') {
-        if (!this.statusIndicator) return;
-        
-        this.statusIndicator.className = 'voice-status-indicator enhanced';
-        if (status !== 'inactive') {
-            this.statusIndicator.classList.add(status);
+        // Command display visibility
+        if (this.commandDisplay) {
+            this.commandDisplay.classList.toggle('hidden', !this.isEnabled);
         }
     }
 
-    async toggle() {
-        if (this.isEnabled) {
-            this.disable();
-        } else {
-            await this.enable();
+    changeLanguage(langCode) {
+        if (this.recognition) {
+            this.recognition.lang = langCode;
+            this.saveSettings();
+            
+            if (this.isListening) {
+                this.stopListening();
+                setTimeout(() => this.startListening(), 500);
+            }
+            
+            this.showNotification(`Jazyk změněn na: ${langCode}`, 'info');
         }
-    }
-
-    async enable() {
-        try {
-            await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            this.isEnabled = true;
-            this.toggleBtn.classList.add('active');
-            this.toggleBtn.title = 'Hlasové ovládání v2.0 AKTIVNÍ (Ctrl+V)';
-            
-            this.startListening();
-            await this.saveSettings();
-            
-            this.showNotification("🎤 Vylepšené hlasové ovládání aktivováno", 'voice-success');
-            this.speak("Hlasové ovládání verze dva aktivováno. Systém připraven přijímat příkazy, admiral Jiříku.");
-            
-            if (DEBUG_VOICE) console.log("🎤 Enhanced voice control enabled");
-        } catch (error) {
-            console.error("🎤 Failed to enable voice control:", error);
-            this.showNotification("❌ Nelze aktivovat mikrofon: " + error.message, 'voice-error');
-            this.updateStatusIndicator('error');
-        }
-    }
-
-    disable() {
-        this.isEnabled = false;
-        this.stopListening();
-        
-        if (this.restartTimer) {
-            clearTimeout(this.restartTimer);
-            this.restartTimer = null;
-        }
-        
-        this.toggleBtn.classList.remove('active');
-        this.toggleBtn.title = 'Hlasové ovládání v2.0 (Ctrl+V)';
-        this.updateStatusIndicator('inactive');
-        
-        this.saveSettings();
-        this.showNotification("🎤 Hlasové ovládání deaktivováno", 'voice-info');
-        
-        if (DEBUG_VOICE) console.log("🎤 Enhanced voice control disabled");
     }
 
     startListening() {
@@ -1583,137 +1047,107 @@ class EnhancedVoiceController {
         try {
             this.recognition.start();
         } catch (error) {
-            console.error("🎤 Failed to start listening:", error);
-            this.updateStatusIndicator('error');
-            this.addToDebugLog('fail', `Start failed: ${error.message}`, 0);
+            console.error("Failed to start voice recognition:", error);
+            this.handleError(error.message);
         }
     }
 
     stopListening() {
-        if (!this.recognition || !this.isListening) return;
-        
-        try {
+        if (this.recognition && this.isListening) {
             this.recognition.stop();
-        } catch (error) {
-            console.error("🎤 Failed to stop listening:", error);
         }
     }
 
-    createSettingsPanel() {
-        this.settingsPanel = document.createElement('div');
-        this.settingsPanel.id = 'voice-settings-panel';
-        this.settingsPanel.className = 'voice-settings-panel hidden';
-        
-        this.settingsPanel.innerHTML = `
-            <div class="voice-settings-header">
-                <h3>🎤 Hlasové ovládání v2.0</h3>
-                <button class="close-settings">✕</button>
-            </div>
-            
-            <div class="voice-settings-content">
-                <div class="setting-group">
-                    <label>
-                        <input type="checkbox" id="voice-responses-toggle" ${this.voiceResponses ? 'checked' : ''}>
-                        Hlasové odpovědi
-                    </label>
-                    <small>Počítač bude slovně odpovídat na příkazy</small>
-                </div>
-                
-                <div class="setting-group">
-                    <label>
-                        <input type="checkbox" id="audio-prevention-toggle" ${this.audioPreventionActive ? 'checked' : ''}>
-                        Zabránit pauzování hudby
-                    </label>
-                    <small>Automaticky obnoví přehrávání po hlasových příkazech</small>
-                </div>
-                
-                <div class="setting-group">
-                    <label for="voice-confidence">Citlivost rozpoznávání:</label>
-                    <input type="range" id="voice-confidence" min="0.2" max="0.8" step="0.1" value="${this.confidence}">
-                    <span class="confidence-value">${Math.round(this.confidence * 100)}%</span>
-                    <small>Nižší hodnota = citlivější rozpoznávání</small>
-                </div>
-                
-                <div class="setting-group">
-                    <label for="voice-language">Jazyk:</label>
-                    <select id="voice-language">
-                        <option value="cs-CZ" ${this.language === 'cs-CZ' ? 'selected' : ''}>Čeština</option>
-                        <option value="en-US" ${this.language === 'en-US' ? 'selected' : ''}>English (US)</option>
-                        <option value="en-GB" ${this.language === 'en-GB' ? 'selected' : ''}>English (UK)</option>
-                    </select>
-                </div>
-                
-                <div class="setting-group">
-                    <h4>📋 Nejčastější příkazy:</h4>
-                    <div class="commands-quick-list">
-                        <div class="command-item">
-                            <strong>"přehrát"</strong> - Spustí přehrávání
-                        </div>
-                        <div class="command-item">
-                            <strong>"pauza"</strong> - Pozastaví přehrávání
-                        </div>
-                        <div class="command-item">
-                            <strong>"další"</strong> - Další skladba
-                        </div>
-                        <div class="command-item">
-                            <strong>"hlasitost nahoru"</strong> - Zvýší hlasitost
-                        </div>
-                        <div class="command-item">
-                            <strong>"co hraje"</strong> - Oznámí aktuální skladbu
-                        </div>
-                        <div class="command-item">
-                            <strong>"help"</strong> - Zobrazí nápovědu
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="setting-group">
-                    <h4>📊 Statistiky:</h4>
-                    <div class="stats-grid">
-                        <div>Úspěšné příkazy: <span id="stats-success">0</span></div>
-                        <div>Neúspěšné pokusy: <span id="stats-failures">0</span></div>
-                        <div>Úspěšnost: <span id="stats-rate">-</span></div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(this.settingsPanel);
+    toggle() {
+        if (this.isEnabled) {
+            this.disable();
+        } else {
+            this.enable();
+        }
+    }
+
+    enable() {
+        this.isEnabled = true;
+        this.startListening();
+        this.updateUI();
+        this.speak(this.getRandomResponse('listening'));
+        this.showNotification("🎤 Voice Control aktivován", 'success');
+        this.saveSettings();
+    }
+
+    disable() {
+        this.isEnabled = false;
+        this.stopListening();
+        this.updateUI();
+        this.speak(this.getRandomResponse('offline'));
+        this.showNotification("🎤 Voice Control deaktivován", 'info');
+        this.saveSettings();
+    }
+
+    showDisplay() {
+        if (this.commandDisplay) {
+            this.commandDisplay.classList.remove('hidden');
+        }
+    }
+
+    hideDisplay() {
+        if (this.commandDisplay) {
+            this.commandDisplay.classList.add('hidden');
+        }
     }
 
     showSettings() {
-        this.settingsPanel.classList.remove('hidden');
-        this.updateStats();
+        if (this.settingsPanel) {
+            this.settingsPanel.classList.remove('hidden');
+            this.loadSettingsUI();
+        }
     }
 
     hideSettings() {
-        this.settingsPanel.classList.add('hidden');
+        if (this.settingsPanel) {
+            this.settingsPanel.classList.add('hidden');
+        }
     }
 
-    updateStats() {
-        const successCount = this.commandHistory.length;
-        const failureCount = this.recentFailures.length;
-        const total = successCount + failureCount;
-        const rate = total > 0 ? Math.round((successCount / total) * 100) : 0;
+    loadSettingsUI() {
+        // Načtení hodnot do UI
+        const langSelect = this.settingsPanel?.querySelector('#voice-language');
+        if (langSelect) langSelect.value = this.recognition?.lang || 'cs-CZ';
         
-        document.getElementById('stats-success').textContent = successCount;
-        document.getElementById('stats-failures').textContent = failureCount;
-        document.getElementById('stats-rate').textContent = total > 0 ? `${rate}%` : '-';
+        const confidenceSlider = this.settingsPanel?.querySelector('#confidence-slider');
+        const confidenceValue = this.settingsPanel?.querySelector('#confidence-value');
+        if (confidenceSlider && confidenceValue) {
+            const value = Math.round(this.confidenceThreshold * 100);
+            confidenceSlider.value = value;
+            confidenceValue.textContent = value + '%';
+        }
+        
+        const voiceFeedback = this.settingsPanel?.querySelector('#voice-feedback');
+        if (voiceFeedback) voiceFeedback.checked = true; // Default enabled
     }
 
+    showNotification(message, type = 'info') {
+        if (typeof window.showNotification === 'function') {
+            window.showNotification(message, type);
+        } else {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    }
+
+    // Data persistence
     async saveSettings() {
         const settings = {
             isEnabled: this.isEnabled,
-            voiceResponses: this.voiceResponses,
-            confidence: this.confidence,
-            language: this.language,
-            audioPreventionActive: this.audioPreventionActive,
-            timestamp: Date.now(),
-            version: '2.0'
+            language: this.recognition?.lang || 'cs-CZ',
+            confidenceThreshold: this.confidenceThreshold,
+            commandHistory: this.commandHistory.slice(0, 20), // Limit saved history
+            timestamp: Date.now()
         };
 
+        // LocalStorage backup
         localStorage.setItem('voiceControlSettings', JSON.stringify(settings));
 
+        // Firestore save (if available)
         try {
             if (typeof window.saveVoiceSettingsToFirestore === 'function') {
                 await window.saveVoiceSettingsToFirestore(settings);
@@ -1722,16 +1156,21 @@ class EnhancedVoiceController {
             console.warn("VoiceController: Firestore save failed:", error);
         }
 
-        if (DEBUG_VOICE) console.log("🎤 Enhanced settings saved:", settings);
+        if (DEBUG_VOICE) {
+            console.log("🎤 Voice settings saved:", settings);
+        }
     }
 
     async loadSettings() {
         try {
+            // Try Firestore first
             if (typeof window.loadVoiceSettingsFromFirestore === 'function') {
                 const firestoreSettings = await window.loadVoiceSettingsFromFirestore();
                 if (firestoreSettings) {
                     this.applySettings(firestoreSettings);
-                    if (DEBUG_VOICE) console.log("🎤 Settings loaded from Firestore");
+                    if (DEBUG_VOICE) {
+                        console.log("🎤 Voice settings loaded from Firestore");
+                    }
                     return;
                 }
             }
@@ -1739,12 +1178,15 @@ class EnhancedVoiceController {
             console.warn("VoiceController: Firestore load failed:", error);
         }
 
+        // Fallback to localStorage
         const savedSettings = localStorage.getItem('voiceControlSettings');
         if (savedSettings) {
             try {
                 const settings = JSON.parse(savedSettings);
                 this.applySettings(settings);
-                if (DEBUG_VOICE) console.log("🎤 Settings loaded from localStorage");
+                if (DEBUG_VOICE) {
+                    console.log("🎤 Voice settings loaded from localStorage");
+                }
             } catch (error) {
                 console.error("VoiceController: Failed to parse saved settings:", error);
             }
@@ -1752,131 +1194,100 @@ class EnhancedVoiceController {
     }
 
     applySettings(settings) {
-        this.isEnabled = settings.isEnabled ?? false;
-        this.voiceResponses = settings.voiceResponses ?? true;
-        this.confidence = settings.confidence ?? 0.5;
-        this.language = settings.language ?? 'cs-CZ';
-        this.audioPreventionActive = settings.audioPreventionActive ?? true;
-        this.currentLanguage = this.language;
+        if (settings.language && this.recognition) {
+            this.recognition.lang = settings.language;
+        }
+        if (settings.confidenceThreshold) {
+            this.confidenceThreshold = settings.confidenceThreshold;
+        }
+        if (settings.commandHistory) {
+            this.commandHistory = settings.commandHistory;
+        }
+        // Note: isEnabled není automaticky aplikováno pro bezpečnost
     }
 
-    // Export konfigurace pro sdílení
-    exportConfiguration() {
-        const config = {
+    // Export/Import functions
+    exportSettings() {
+        const data = {
             settings: {
-                confidence: this.confidence,
-                language: this.language,
-                voiceResponses: this.voiceResponses,
-                audioPreventionActive: this.audioPreventionActive
+                language: this.recognition?.lang || 'cs-CZ',
+                confidenceThreshold: this.confidenceThreshold
             },
-            commands: this.commands.map(cmd => ({
-                pattern: cmd.pattern,
-                action: cmd.action,
-                description: cmd.description
-            })),
-            performance: {
-                totalCommands: this.commandHistory.length,
-                totalFailures: this.recentFailures.length,
-                successRate: this.commandHistory.length / (this.commandHistory.length + this.recentFailures.length)
-            },
-            timestamp: new Date().toISOString(),
-            version: '2.0'
+            commandHistory: this.commandHistory,
+            commandPatterns: Object.keys(this.commandPatterns),
+            timestamp: Date.now(),
+            version: '1.0'
         };
         
-        const blob = new Blob([JSON.stringify(config, null, 2)], {
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
             type: 'application/json'
         });
         
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `voice-config-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `star-trek-voice-settings-${new Date().toISOString().split('T')[0]}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        this.showNotification('📁 Konfigurace exportována', 'voice-success');
+        this.showNotification('📁 Nastavení hlasu exportována', 'success');
     }
 
-    // Metoda pro přidání custom příkazů tady je začátek? 
-    addCustomCommand(patterns, action, description, callback) {
-    if (!Array.isArray(patterns) || typeof callback !== 'function') {
-        console.error("Enhanced VoiceController: Invalid custom command parameters");
-        return false;
+    // API pro externí použití
+    isVoiceEnabled() {
+        return this.isEnabled;
     }
 
-    patterns.forEach(pattern => {
-        this.commands.push({
-            regex: new RegExp(`\\b${this.escapeRegExp(pattern)}\\b`, 'i'),
-            fuzzyRegex: new RegExp(this.escapeRegExp(pattern).replace(/./g, '$&.*?'), 'i'), // Opravený řádek
-            action,
-            description,
-            pattern,
-            callback,
-            custom: true
-        });
-        
-        this.commandAliases.set(pattern.toLowerCase(), action);
-    });
+    isCurrentlyListening() {
+        return this.isListening;
+    }
 
-    if (DEBUG_VOICE) console.log(`🎤 Added custom command: ${action} with patterns:`, patterns);
-    return true;
-}
+    getCommandHistory(limit = 10) {
+        return this.commandHistory.slice(0, limit);
+    }
 
-    // Vylepšená diagnostika
-    runDiagnostics() {
-        const diagnostics = {
-            browser: {
-                userAgent: navigator.userAgent,
-                speechRecognition: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
-                speechSynthesis: !!window.speechSynthesis,
-                mediaDevices: !!navigator.mediaDevices
-            },
-            voice: {
-                isEnabled: this.isEnabled,
-                isListening: this.isListening,
-                currentLanguage: this.currentLanguage,
-                confidence: this.confidence,
-                voiceCount: speechSynthesis.getVoices().length
-            },
-            performance: {
-                commandCount: this.commandHistory.length,
-                failureCount: this.recentFailures.length,
-                successRate: this.commandHistory.length / (this.commandHistory.length + this.recentFailures.length) || 0,
-                recognitionAttempts: this.recognitionAttempts
-            },
-            commands: {
-                totalCommands: this.commands.length,
-                customCommands: this.commands.filter(c => c.custom).length
-            }
-        };
+    addCustomCommand(pattern, callback, commandType = 'custom') {
+        if (!this.commandPatterns[commandType]) {
+            this.commandPatterns[commandType] = [];
+        }
+        this.commandPatterns[commandType].push(pattern);
         
-        console.table(diagnostics.browser);
-        console.table(diagnostics.voice);
-        console.table(diagnostics.performance);
-        console.table(diagnostics.commands);
-        
-        this.addToDebugLog('info', 'Diagnostika dokončena - viz console', 0);
-        return diagnostics;
+        // Pro custom příkazy, uložíme callback
+        if (!this.customCommands) this.customCommands = new Map();
+        this.customCommands.set(commandType, callback);
+    }
+
+    // Test function pro debugging
+    testCommand(transcript) {
+        if (DEBUG_VOICE) {
+            console.log(`🎤 Testing command: "${transcript}"`);
+            this.processCommand(transcript, 1.0);
+        }
     }
 }
 
-// Globální inicializace enhanced verze
-let enhancedVoiceController;
+// Globální inicializace
+let voiceController;
 
+// Auto-inicializace po DOM ready
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', async () => {
-        enhancedVoiceController = new EnhancedVoiceController();
-        window.voiceController = enhancedVoiceController;
-        window.enhancedVoiceController = enhancedVoiceController;
+    document.addEventListener('DOMContentLoaded', () => {
+        // Malé zpoždění kvůli ostatním modulům
+        setTimeout(() => {
+            voiceController = new VoiceController();
+            window.voiceController = voiceController; // Global access
+        }, 1000);
     });
 } else {
-    enhancedVoiceController = new EnhancedVoiceController();
-    window.voiceController = enhancedVoiceController;
-    window.enhancedVoiceController = enhancedVoiceController;
+    setTimeout(() => {
+        voiceController = new VoiceController();
+        window.voiceController = voiceController;
+    }, 1000);
 }
 
+// Export pro ES modules
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = EnhancedVoiceController;
+    module.exports = VoiceController;
 }
