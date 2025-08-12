@@ -197,7 +197,7 @@ class VoiceController {
         };
         
         this.recognition.onerror = (event) => {
-            console.error("🎤 Voice recognition error:", event.error);
+           // console.error("🎤 Voice recognition error:", event.error);
             this.updateStatusIndicator('error');
             
             if (event.error === 'no-speech') return;
